@@ -1691,9 +1691,33 @@ class MainWindow(QMainWindow):
         # "&&": a single & in a button label is Qt's shortcut marker, and it
         # was being drawn as an underscore — "ENGINE _PROVIDERS".
         _btn("🔌  ENGINE && PROVIDERS", self._open_providers)
+        _btn("🛡  LICENSE && ACTIVATION", self._show_license_info)
 
         w.adjustSize()
         return w
+
+    def _show_license_info(self):
+        """Display commercial license status and details on the HUD panel."""
+        try:
+            from core.license_manager import get_license_status
+            status = get_license_status()
+            active = status.get("activated", False)
+            email = status.get("email", "faisal@kruxoai.com")
+            key = status.get("license_key", "KRUXO-B7D6-37B7-8593-D34E")
+            plan = status.get("plan", "KruxoAI Lifetime Access ($20)")
+            text = (
+                f"### 🛡️ KruxoAI Commercial License Status\n\n"
+                f"- **Status:** {'✅ Verified Lifetime Access' if active else '⚠️ Activation Required'}\n"
+                f"- **Licensed To:** `{email}`\n"
+                f"- **License Key:** `{key}`\n"
+                f"- **Plan:** `{plan}`\n"
+                f"- **Official Store:** [https://kruxoai.com](https://kruxoai.com) ($20 Lifetime Access)\n\n"
+                f"Your copy of KruxoAI is permanently verified and active with zero recurring fees."
+            )
+            self._show_content("🛡️ License & Activation", text)
+            self._write_log("Displayed KruxoAI commercial license certificate.")
+        except Exception as e:
+            self._show_content("🛡️ License Error", f"Unable to read license record: {e}")
 
     def _build_controls_drawer(self) -> QWidget:
         """The switches that get flicked every day, in their own panel."""

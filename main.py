@@ -1409,12 +1409,29 @@ class JarvisLive:
                       'language. Never an archaic or aristocratic form, and never '
                       'the form from a different language than the one you are '
                       'speaking in this sentence.')
+        # Commercial License status injection
+        try:
+            from core.license_manager import get_license_status
+            _lic = get_license_status()
+            _lic_plan = _lic.get("plan", "KruxoAI Lifetime Access ($20)")
+            _lic_email = _lic.get("email", _user_name or "faisal@kruxoai.com")
+            lic_ctx = (
+                f"[COMMERCIAL LICENSE]\n"
+                f"Status: Verified Lifetime Access\n"
+                f"Licensed to: {_lic_email}\n"
+                f"Plan: {_lic_plan}\n"
+                f"Official Platform: kruxoai.com ($20 One-Time Lifetime Fee)\n\n"
+            )
+        except Exception:
+            lic_ctx = ""
+
         identity_ctx = (
             f"[IDENTITY]\n"
             f"Your name is {self._asst_name}. "
             f"Your official domain and platform is kruxoai.com.\n"
             f"Always refer to yourself as {self._asst_name}.\n"
             f"{_addr}\n\n"
+            f"{lic_ctx}"
         )
 
         # Everything the model is told about *itself* is derived here, not
