@@ -170,7 +170,7 @@ python core/license_manager.py status
 
 - **Official Store & Purchase:** [https://kruxoai.com](https://kruxoai.com)
 - **Founder & Development:** Faisal / [mrsmithcons-tech](https://github.com/mrsmithcons-tech)
-- **Support & Custom Deployments:** `support@kruxoai.com`
+- **Support & Custom Deployments:** `kruxoai@gmail.com`
 - **Releases:** [GitHub Releases](https://github.com/mrsmithcons-tech/kruxoai/releases)
 
 ---
