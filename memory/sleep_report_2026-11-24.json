@@ -1,0 +1,15 @@
+{
+  "date": "2026-11-24",
+  "privacy_guarantee": "100% On-Device Processing. No video frames or audio recordings are uploaded or leave this PC.",
+  "sleep_quality_score": 65,
+  "bedtime": "2026-11-24 10:41:43 PM",
+  "wake_time": "2026-11-24 10:41:43 PM",
+  "total_sleep_duration_hours": 0.0,
+  "position_shifts": [],
+  "snore_events": [],
+  "snore_confidence": "No rhythmic snoring detected",
+  "yawns_detected": 0,
+  "noise_spikes": [],
+  "light_events": [],
+  "timeline": []
+}

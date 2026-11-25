@@ -1,0 +1,72 @@
+# ── MARK LVI — what never belongs in the repository ──────────────────────────
+# Everything listed here is created by the app on first run. A fresh clone with
+# none of it present boots straight to the setup screen, which is the intended
+# first experience — so nothing here needs to be committed, and some of it must
+# never be.
+
+# ── Secrets. Committing any of these publishes them. ──────────────────────────
+config/api_keys.json
+.keys
+.keys/
+config/certs/
+config/whatsapp_web/
+**/token*.json                # Google OAuth tokens (Gmail / Calendar plugins)
+**/client_secret*.json        # Google OAuth client secrets
+*credentials*.json
+.env
+.env.*
+
+# ── Personal data the assistant accumulates about you ─────────────────────────
+memory/long_term.json
+memory/*.db
+
+# ── Python build noise ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Editors and operating systems ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Runtime output ────────────────────────────────────────────────────────────
+*.log
+*.txt
+run_output.txt
+logs/
+downloads/
+screenshots/
+*.bak
+run_jarvis_monitored.py
+
+# ── KruxoAI Commercial Distribution & Privacy ──────────────────────────────────
+*.exe
+KruxoAI.exe
+providers/voices/*.onnx
+config/license.json
+config/antigravity_inbox.json
+memory/biometric_2fa_audit.json
+memory/room_sentry_events.json
+memory/voice_emotion_history.json
+memory/sleep_tracker_log.json
+memory/sleep_report_*.json
+memory/voice_biometrics.json
+memory/observed_activity.json
+memory/notes/
+memory/tasks/
+reports/

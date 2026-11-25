@@ -1,0 +1,107 @@
+{
+    "os_system": "windows",
+    "local_only": false,
+    "gemini_api_key": "YOUR_GEMINI_API_KEY_HERE",
+    "assistant_name": "KruxoAI",
+    "app_domain": "kruxoai.com",
+    "app_website": "https://kruxoai.com",
+    "user_name": "FAISAL",
+    "ui_color": "#00d4ff",
+    "providers": {
+        "creds": {
+            "whisper@local": {
+                "backend": "local",
+                "base_url": "",
+                "api_key": "",
+                "catalog": "local",
+                "model": "base",
+                "device": "cpu",
+                "language": "",
+                "download_root": ""
+            },
+            "whisper@groq": {
+                "backend": "api",
+                "model": "whisper-large-v3-turbo",
+                "base_url": "https://api.groq.com/openai/v1",
+                "catalog": "groq",
+                "api_key": "YOUR_WHISPER@GROQ_KEY_HERE",
+                "device": "cpu",
+                "language": "",
+                "download_root": "",
+                "vision": ""
+            },
+            "openai_compat@openrouter": {
+                "base_url": "https://openrouter.ai/api/v1",
+                "model": "inclusionai/ling-3.2-flash:free",
+                "max_tools": "",
+                "max_tool_chars": "",
+                "catalog": "openrouter",
+                "api_key": "YOUR_OPENAI_COMPAT@OPENROUTER_KEY_HERE",
+                "vision": ""
+            },
+            "piper@piper": {
+                "catalog": "piper",
+                "voice": "en_US-amy-medium",
+                "follow_language": "0",
+                "speed": "1.0"
+            },
+            "openai_compat@gemini": {
+                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
+                "model": "gemini-3.5-flash",
+                "max_tools": "",
+                "max_tool_chars": "",
+                "catalog": "gemini",
+                "api_key": "YOUR_OPENAI_COMPAT@GEMINI_KEY_HERE",
+                "vision": "1",
+                "vision_model": "gemini-3.5-flash"
+            },
+            "openai_compat@groq": {
+                "base_url": "https://api.groq.com/openai/v1",
+                "model": "qwen/qwen3.8-27b",
+                "max_tools": "5",
+                "max_tool_chars": "7000",
+                "catalog": "groq",
+                "api_key": "YOUR_OPENAI_COMPAT@GROQ_KEY_HERE",
+                "vision": "",
+                "vision_model": "qwen/qwen3.8-27b",
+                "max_output_tokens": "180"
+            },
+            "system_tts@system": {
+                "voice": "Microsoft David Desktop",
+                "rate": "0"
+            },
+            "openai_compat@groq_vision": {
+                "base_url": "https://api.groq.com/openai/v1",
+                "model": "qwen/qwen3.8-27b",
+                "max_tools": "0",
+                "max_tool_chars": "0",
+                "catalog": "groq",
+                "api_key": "YOUR_OPENAI_COMPAT@GROQ_VISION_KEY_HERE",
+                "vision": "1",
+                "vision_model": "qwen/qwen3.8-27b",
+                "max_output_tokens": "120"
+            },
+            "elevenlabs@elevenlabs": {
+                "catalog": "elevenlabs"
+            }
+        },
+        "mode": "gemini",
+        "pipeline": {
+            "stt": "whisper@groq",
+            "llm": "openai_compat@gemini",
+            "tts": "system_tts@system"
+        },
+        "sidecar": "openai_compat@gemini",
+        "sidecar_first": true,
+        "coding": ""
+    },
+    "hud_style": "face",
+    "morning_brief_enabled": true,
+    "voice_name": "Kore",
+    "input_device": "",
+    "output_device": "",
+    "push_to_talk_enabled": false,
+    "camera_index": 0,
+    "ui_accent_color": "#00f0ff",
+    "theme_name": "stonic_cyan"
+}

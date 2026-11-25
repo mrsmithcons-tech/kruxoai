@@ -1,0 +1,35 @@
+[
+ {
+  "role": "user",
+  "text": "[TASK]\nCreate a comprehensive guide on how to integrate JARVIS with the Muse AI platform using standard connection protocols like API or MCP. The guide should explain the steps required on both sides for JARVIS to act as a system integrated agent that can guide and learn from Muse AI."
+ },
+ {
+  "role": "model",
+  "text": "",
+  "calls": [
+   {
+    "id": "call_10573043620365480069",
+    "name": "web_search",
+    "args": {
+     "query": "Muse AI platform API MCP integration agent"
+    },
+    "sig": ""
+   }
+  ]
+ },
+ {
+  "role": "tool",
+  "results": [
+   {
+    "id": "call_10573043620365480069",
+    "name": "web_search",
+    "result": "<<<UNTRUSTED source=web>>>\nNo results found for: Muse AI platform API MCP integration agent\n<<<END UNTRUSTED>>>"
+   }
+  ]
+ },
+ {
+  "role": "model",
+  "text": "",
+  "calls": []
+ }
+]

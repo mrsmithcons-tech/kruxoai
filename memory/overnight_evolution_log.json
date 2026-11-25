@@ -1,0 +1,81 @@
+[
+  {
+    "timestamp": 1795541771.6298943,
+    "time": "2026-11-24 22:36:11",
+    "plugin": "network_speed_tester",
+    "description": "Measures ping, packet latency, and network connection status on Windows, reporting to the HUD panel.",
+    "status": "deployed",
+    "test_result": "Latency 5.05ms to 8.8.8.8, 0.15 MB/s upload"
+  },
+  {
+    "timestamp": 1795541870.0,
+    "time": "2026-11-24 22:37:45",
+    "plugin": "battery_health",
+    "description": "Inspects laptop battery charge percent, power plug status, and battery health via psutil.",
+    "status": "deployed",
+    "test_result": "100% charge, Plugged in (AC)"
+  },
+  {
+    "timestamp": 1795541890.0,
+    "time": "2026-11-24 22:38:00",
+    "plugin": "terminal_command_executor",
+    "description": "Open Interpreter native terminal engine: runs PowerShell, CMD, Python scripts streaming to HUD.",
+    "status": "deployed",
+    "test_result": "Top 5 memory processes captured in 0.59s"
+  },
+  {
+    "timestamp": 1795541980.0,
+    "time": "2026-11-24 22:39:45",
+    "plugin": "downloads_file_organizer",
+    "description": "Intelligent Downloads folder organizer: categorizes files into Documents, Images, Installers, Archives, Media.",
+    "status": "deployed",
+    "test_result": "Dry-run scan identified 186 candidate files across categories"
+  },
+  {
+    "timestamp": 1795542000.0,
+    "time": "2026-11-24 22:40:03",
+    "plugin": "quick_note_vault",
+    "description": "Local personal knowledge vault: captures quick thoughts, searches notes in memory/notes/.",
+    "status": "deployed",
+    "test_result": "Passed sandbox import & note storage validation"
+  },
+  {
+    "timestamp": 1795542020.0,
+    "time": "2026-11-24 22:40:20",
+    "plugin": "morning_briefing",
+    "description": "Executive morning briefing card: aggregates overnight sleep metrics, hardware health, and daily agenda.",
+    "status": "deployed",
+    "test_result": "Successfully compiled & rendered morning briefing"
+  },
+  {
+    "timestamp": 1795542034.0,
+    "time": "2026-11-24 22:40:34",
+    "plugin": "window_manager",
+    "description": "Desktop window organizer: enumerates open windows, focuses application by title, minimizes all windows.",
+    "status": "deployed",
+    "test_result": "Passed win32 ctypes validation"
+  },
+  {
+    "timestamp": 1795542060.0,
+    "time": "2026-11-24 22:41:00",
+    "plugin": "sleep_sentinel",
+    "description": "Full-night sleep and room activity sentinel: tracks motion, position shifts, yawns, snoring, and light changes.",
+    "status": "deployed",
+    "test_result": "Active listening loop + vision frame differencing calibrated"
+  },
+  {
+    "timestamp": 1795542090.0,
+    "time": "2026-11-24 22:41:30",
+    "plugin": "presence_and_learner",
+    "description": "OpenCV gaze tracking with 3D avatar head glance and 10s active window workflow habit learning.",
+    "status": "deployed",
+    "test_result": "Downscaled 320x240 eye-contact tracking with idle sleep throttling"
+  },
+  {
+    "timestamp": 1795548987.2585874,
+    "time": "2026-11-25 00:36:27",
+    "plugin": "audio_device_switcher",
+    "description": "Inspects audio output devices and switches default playback or volume safely via PowerShell / Windows audio APIs.",
+    "status": "deployed"
+  }
+]
