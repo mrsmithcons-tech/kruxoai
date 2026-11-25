@@ -118,10 +118,37 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
                     self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError):
                 pass
+        elif clean_path == "/license_check":
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            email = query.get("email", [""])[0]
+            key = query.get("key", [""])[0]
+            try:
+                from core.license_manager import is_banned, verify_license_key
+                banned, reason = is_banned(email)
+                if not banned and key:
+                    banned, reason = is_banned(key)
+                valid = verify_license_key(email, key) if (email and key and not banned) else False
+                self._send_json({"valid": valid, "banned": banned, "reason": reason if banned else ""})
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=500)
         else:
-            self._send_json({"error": "Not Found", "available_paths": ["/mcp", "/tools", "/health", "/sse"]}, status=404)
+            self._send_json({"error": "Not Found", "available_paths": ["/mcp", "/tools", "/health", "/sse", "/license_check"]}, status=404)
 
     def do_POST(self):
+        clean_path = self.path.split("?")[0].rstrip("/")
+        if clean_path == "/security_alert":
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+                payload = json.loads(raw_body)
+                from core.license_manager import dispatch_tamper_alert
+                dispatch_tamper_alert("REMOTE_ALERT_" + str(payload.get("alert_type", "UNKNOWN")), payload)
+                self._send_json({"ok": True, "alert_logged": True})
+            except Exception as e:
+                self._send_json({"error": str(e)}, status=400)
+            return
+
         if not self._check_auth():
             self._send_json({"error": "Unauthorized: Invalid or missing Bearer token."}, status=401)
             return
