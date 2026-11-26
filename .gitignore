@@ -75,3 +75,4 @@ memory/tasks/
 reports/
 memory/living_journal.jsonl
 memory/living_state.json
+memory/living_config.json

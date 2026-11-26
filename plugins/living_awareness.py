@@ -11,6 +11,11 @@ Actions:
                         when a sensor is off — never a guess)
   what_happened_today — summary of today's journal
   start / stop        — turn the living loop on / off ("go quiet")
+  awareness_on/off    — the Awareness toggle (Stonic-style): on = Kruxo senses
+                        and may speak; off = silent, state still updates
+  awareness_status    — toggle state + quiet hours + last brain decision
+  awareness_card      — show the "mind" panel on the HUD: toggle, senses,
+                        mood, last brain decision (the visible Awareness panel)
 
 Model calls, if ever needed, go through core.gemini (template rule).
 This plugin never raises: it returns a spoken error string instead.
@@ -24,10 +29,11 @@ PLUGIN = {
     "name": "living_awareness",
     "description": (
         "Kruxo AI's living awareness: what it sees right now on this machine "
-        "(foreground app, system load, battery, who is in the room), what "
-        "happened today, and turning living mode on or off. Use this when the "
-        "user asks what you see, what is happening, what happened today, or to "
-        "go quiet / wake up. Do NOT use it for general chat or web questions."
+        "(foreground app, system load, battery, who is in the room, outside "
+        "weather, time of day), what happened today, and the Awareness toggle. "
+        "Use this when the user asks what you see, what is happening, what "
+        "happened today, how you feel, or to turn awareness on/off or go quiet. "
+        "Do NOT use it for general chat or web questions."
     ),
     "parameters": {
         "type": "OBJECT",
@@ -36,7 +42,8 @@ PLUGIN = {
                 "type": "STRING",
                 "enum": ["status", "what_do_you_see", "what_happened_today",
                          "how_am_i_feeling", "what_do_you_understand",
-                         "start", "stop"],
+                         "awareness_on", "awareness_off", "awareness_status",
+                         "awareness_card", "start", "stop"],
                 "description": "What to do (default: what_do_you_see).",
             },
         },
@@ -82,11 +89,49 @@ def _describe(state: dict) -> str:
         parts.append(f"Last voice in the room: {speaker}.")
     else:
         parts.append("The room sensor has not reported anyone.")
+    env = state.get("environment") or {}
+    if env.get("time_of_day"):
+        parts.append(f"It is {env['time_of_day']}.")
+    outside = env.get("outside") or {}
+    if outside.get("temp_c") is not None:
+        parts.append(f"Outside {outside.get('place', '')}: {outside['temp_c']} degrees, "
+                     f"{outside.get('conditions') or ''}.")
+    if env.get("cpu_temp_c") is not None:
+        parts.append(f"CPU temperature {env['cpu_temp_c']} degrees.")
     u = state.get("understanding") or {}
     if u.get("mood") and u["mood"] != "unknown":
         parts.append(f"Understood mood: {u['mood']} (confidence {u.get('confidence', 'low')}, "
                      f"energy {u.get('energy', 'unknown')}, doing {u.get('intent', 'unknown')}).")
     return " ".join(parts)
+
+
+def _awareness_card(state: dict) -> str:
+    """The visible 'mind' panel (Stonic-style): toggle, senses, mood, brain."""
+    aw = state.get("awareness") or {}
+    env = state.get("environment") or {}
+    outside = env.get("outside") or {}
+    u = state.get("understanding") or {}
+    brain = state.get("last_brain_decision") or {}
+    lines = [
+        "### 🧠 Awareness",
+        "",
+        f"- **Awareness:** {'ON' if aw.get('enabled', True) else 'OFF'}"
+        f" · Proactive brain: {'ON' if aw.get('proactive', True) else 'OFF'}",
+        f"- **Quiet hours:** {aw.get('quiet_hours', '21:00-06:00')}"
+        f" (now: {'quiet' if aw.get('in_quiet_hours') else 'awake'})",
+        f"- **Time:** {env.get('time_of_day', 'unknown')}"
+        + (f" · Outside {outside.get('place', '')}: {outside.get('temp_c')}°C, "
+           f"{outside.get('conditions') or 'unknown'}" if outside.get("temp_c") is not None
+           else " · Outside weather: unknown"),
+        f"- **CPU temp:** {env.get('cpu_temp_c')}°C" if env.get("cpu_temp_c") is not None
+        else "- **CPU temp:** not exposed by this machine",
+        f"- **Mood:** {u.get('mood', 'unknown')} (confidence {u.get('confidence', 'low')}, "
+        f"energy {u.get('energy', 'unknown')})",
+        f"- **Last brain decision:** {brain.get('at', 'none yet')} — "
+        f"{'spoke' if brain.get('speak') else 'stayed quiet'}"
+        + (f" — {brain.get('reason', '')}" if brain.get("reason") else ""),
+    ]
+    return "\n".join(lines)
 
 
 def _feeling_summary(state: dict) -> str:
@@ -125,6 +170,37 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         if action == "stop":
             engine.stop()
             return "Going quiet now. Living mode is off. Everything I learned stays saved locally."
+        if action in ("awareness_on", "awareness_off", "awareness_status", "awareness_card"):
+            from core.living_awareness import load_living_config, save_living_config
+            if action == "awareness_on":
+                save_living_config({"awareness_enabled": True, "proactive_enabled": True})
+                engine._send_hud_panel("🧠 Awareness ON",
+                                       "Awareness is ON. I can sense and speak again.",
+                                       speak="Awareness is on.")
+                return "Awareness is on. I can sense the machine and speak when something matters."
+            if action == "awareness_off":
+                save_living_config({"awareness_enabled": False})
+                engine._send_hud_panel("🧠 Awareness OFF",
+                                       "Awareness is OFF. I will stay silent. State still updates.",
+                                       speak="")
+                return "Awareness is off. I will stay silent. My senses still update, but I will not speak."
+            try:
+                engine._tick()
+            except Exception:
+                pass
+            state = engine.get_state()
+            if action == "awareness_status":
+                aw = state.get("awareness") or {}
+                brain = state.get("last_brain_decision") or {}
+                return ("Awareness is " + ("ON" if aw.get("enabled", True) else "OFF")
+                        + f", proactive brain {'ON' if aw.get('proactive', True) else 'OFF'}"
+                        + f", quiet hours {aw.get('quiet_hours', '21:00-06:00')}"
+                        + (" (quiet now)." if aw.get("in_quiet_hours") else " (awake now).")
+                        + (f" Last brain decision: {brain.get('at', 'none yet')} — "
+                           f"{'spoke' if brain.get('speak') else 'stayed quiet'}."
+                           if brain else " Brain has not decided anything yet."))
+            engine._send_hud_panel("🧠 Awareness", _awareness_card(state), speak="")
+            return "Here is my awareness panel — toggle, senses, mood, and my last decision."
         if action == "status":
             state = engine.get_state()
             return ("Living mode is on." if getattr(engine, "_running", False)
