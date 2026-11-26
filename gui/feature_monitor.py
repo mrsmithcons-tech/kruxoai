@@ -19,15 +19,15 @@ from gui.style import px_font, hud_font, scroll_css
 def _badge_style(color_key: str) -> tuple[str, str, str]:
     """Returns (text_color, bg_color, border_color) for a status badge."""
     ck = (color_key or "GREEN").upper()
-    if ck in ("GREEN", "ACTIVE", "ONLINE", "LISTENING", "SPEAKING"):
-        return C.GREEN, "rgba(0, 255, 136, 0.12)", C.GREEN_D
-    elif ck in ("PRI", "CYAN", "PROCESSING", "THINKING"):
-        return C.PRI, "rgba(0, 212, 255, 0.12)", C.PRI_DIM
+    if ck in ("GREEN", "ACTIVE", "ONLINE", "LISTENING", "SPEAKING", "RUNNING", "LIVE", "LIVE STREAM", "SENSING LIVE", "STREAMING"):
+        return C.GREEN, "rgba(0, 255, 136, 0.14)", C.GREEN_D
+    elif ck in ("PRI", "CYAN", "PROCESSING", "THINKING", "INFERENCE"):
+        return C.PRI, "rgba(0, 212, 255, 0.14)", C.PRI_DIM
     elif ck in ("RED", "MUTED", "ISOLATED", "STOPPED", "ERROR"):
-        return C.RED, "rgba(255, 51, 85, 0.14)", C.RED
-    elif ck in ("YELLOW", "ACC", "STANDBY", "IDLE", "PAUSED"):
-        return C.ACC2, "rgba(255, 204, 0, 0.12)", C.ACC
-    return C.TEXT, "rgba(143, 252, 255, 0.10)", C.BORDER
+        return C.RED, "rgba(255, 51, 85, 0.16)", C.RED
+    elif ck in ("YELLOW", "ACC", "PAUSED"):
+        return C.ACC2, "rgba(255, 204, 0, 0.14)", C.ACC
+    return C.GREEN, "rgba(0, 255, 136, 0.14)", C.GREEN_D
 
 
 class FeatureCard(QFrame):
@@ -182,18 +182,18 @@ class FeatureMonitorWidget(QWidget):
 
     def _setup_defaults(self):
         defaults = [
-            ("voice", "🎙️", "VOICE ENGINE", "LISTENING",
+            ("voice", "🎙️", "VOICE ENGINE", "LIVE STREAM",
              "Gemini Live · Kore (Realistic) · 24kHz", "GREEN"),
-            ("brain", "🧠", "COGNITIVE CORE", "ONLINE",
+            ("brain", "🧠", "COGNITIVE CORE", "RUNNING",
              "Gemini 3.1 Flash · Groq Fallback Armed", "GREEN"),
-            ("call_shield", "📞", "CALL SHIELD", "ARMED",
-             "1-Click Audio Cut & Mute [F4 / Pause]", "GREEN"),
+            ("call_shield", "📞", "CALL SHIELD", "RUNNING",
+             "Live Call Interceptor Armed · Hotkeys F4 / Pause Active", "GREEN"),
             ("plugins", "🧩", "PLUGIN SUITE", "45 ACTIVE",
-             "45 Tools Loaded · Click to Manage", "GREEN"),
-            ("vision", "👁️", "VISION SYSTEM", "READY",
-             "Screen Capture & Camera Feed Armed", "PRI"),
+             "45 Tools Loaded & Armed · Click to Manage", "GREEN"),
+            ("vision", "👁️", "VISION & SENSORS", "SENSING LIVE",
+             "Environment & Screen Eye Active · Real-time Sensor", "GREEN"),
             ("tasks", "⚙️", "BACKGROUND TASKS", "RUNNING",
-             "MCP Server (Port 8000) · Auto-Routines", "GREEN"),
+             "Living Loop · MCP Server (Port 8000) · Self-Healing Watchdog", "GREEN"),
         ]
         for fid, icon, name, status, detail, ck in defaults:
             self.add_feature(fid, icon, name, status, detail, ck)

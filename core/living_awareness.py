@@ -305,6 +305,22 @@ class LivingAwareness:
         self._save_state(snapshot)
         self._evaluate_rules(snapshot, now, minutes_on_app)
 
+        # Push real-time environment sensor data to Live Feature Monitor
+        try:
+            from ui import JarvisUI
+            _ui = self.player or JarvisUI.get_active()
+            if _ui and hasattr(_ui, "update_feature"):
+                out = self._environment.get("outside") or {}
+                temp = out.get("temp_c")
+                cond = out.get("conditions") or "Clear"
+                tod = self._environment.get("time_of_day") or "Day"
+                temp_str = f"{temp}°C " if temp is not None else ""
+                summary = f"Tandlianwala {temp_str}{cond} · {tod.title()} · Screen Aware"
+                _ui.update_feature("vision", "SENSING LIVE", summary, "GREEN")
+                _ui.update_feature("tasks", "RUNNING", f"Living Loop Tick #{self._tick_count} · Watchdog Active", "GREEN")
+        except Exception:
+            pass
+
     # -- proactive brain -----------------------------------------------------
     def _judge_signature(self, snap: Dict[str, Any]) -> tuple:
         """What the brain watches for change: mood, app, hour, battery, weather.

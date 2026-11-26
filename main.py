@@ -3105,6 +3105,21 @@ def main():
         ui.wait_for_api_key()
         jarvis = JarvisLive(ui)
         holder["jarvis"] = jarvis
+
+        # Auto-start living awareness environment engine & self-healing watchdog
+        try:
+            from core.living_awareness import living_awareness
+            living_awareness.player = ui
+            living_awareness.start()
+        except Exception as e:
+            print(f"[JARVIS] Living Awareness start error: {e}")
+
+        try:
+            from core.watchdog import supervisor_watchdog
+            supervisor_watchdog.start()
+        except Exception as e:
+            print(f"[JARVIS] Watchdog start error: {e}")
+
         try:
             asyncio.run(jarvis.run())
         except KeyboardInterrupt:

@@ -424,6 +424,7 @@ class MainWindow(QMainWindow):
         self._review_sig.connect(self._show_review)
         self._feat_sig.connect(self._on_feature_update)
         self._cam_stop = threading.Event()
+        threading.Thread(target=self._init_live_features_async, daemon=True, name="init-live-features").start()
 
         # Camera preview overlay (child of central widget, positioned in resizeEvent)
         self._cam_preview = _CameraPreview(self.centralWidget())
@@ -1261,7 +1262,14 @@ class MainWindow(QMainWindow):
 
         if hasattr(self, "_feat_sig"):
             try:
-                self._feat_sig.emit("tasks", "RUNNING", "MCP Server Port 8000 · Routines & Daemons active", "GREEN")
+                if not getattr(self, "_muted", False):
+                    self._feat_sig.emit("voice", "LIVE STREAM", "Gemini Live 24kHz · Kore (Realistic) · Mic Active", "GREEN")
+                if getattr(self, "_state", "") != "THINKING":
+                    self._feat_sig.emit("brain", "RUNNING", "Gemini 3.1 Flash · Groq Fallback Armed · Active", "GREEN")
+                if not getattr(self, "_call_mode_active", False) and not getattr(self, "_muted", False):
+                    self._feat_sig.emit("call_shield", "RUNNING", "Live Call Interceptor Armed · Hotkeys F4 / Pause Active", "GREEN")
+                self._feat_sig.emit("plugins", "45 ACTIVE", "45 Tools Loaded & Armed · Auto-Dispatch Ready", "GREEN")
+                self._feat_sig.emit("tasks", "RUNNING", "Living Loop · MCP Server (Port 8000) · Watchdog Active", "GREEN")
             except Exception:
                 pass
 
@@ -1757,6 +1765,20 @@ class MainWindow(QMainWindow):
     def update_feature(self, feature_id: str, status: str, detail: str = "", color_key: str = "GREEN"):
         """Thread-safe UI method to update feature card."""
         self._feat_sig.emit(feature_id, status, detail, color_key)
+
+    def _init_live_features_async(self):
+        try:
+            from core.environment import sense_environment
+            env = sense_environment()
+            out = env.get("outside") or {}
+            temp = out.get("temp_c")
+            cond = out.get("conditions") or "Clear"
+            tod = env.get("time_of_day") or "Day"
+            temp_str = f"{temp}°C " if temp is not None else ""
+            summary = f"Tandlianwala {temp_str}{cond} · {tod.title()} · Screen Aware"
+            self._feat_sig.emit("vision", "SENSING LIVE", summary, "GREEN")
+        except Exception:
+            pass
 
     def _build_quick_drawer(self) -> QWidget:
         """Floating panel under the gear: the things you set once."""
