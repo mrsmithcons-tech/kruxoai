@@ -223,12 +223,15 @@ def _call_chat(text: str, history=None) -> dict:
         from core.tasks.brain import ask as brain_ask
         result = brain_ask(system, turns, None)
         reply = str((result or {}).get("text", "") or "").strip()
-    except Exception as e:
+    except Exception:
         reply = ""
     if not reply:
         reply = "I am here, Faisal. The line is quiet right now — please try again in a moment."
-    # TTS: Edge TTS Swara (Zara's fallback voice, no key needed).
+    # TTS: Edge TTS. ur-PK-SwaraNeural does NOT exist (Edge lists only
+    # ur-PK-AsadNeural / ur-PK-UzmaNeural) — that is why the first version
+    # returned no audio. Try Aria (female, English) then Uzma (female Urdu).
     audio_b64 = ""
+    voice_used = ""
     try:
         import asyncio
         import base64
@@ -236,28 +239,32 @@ def _call_chat(text: str, history=None) -> dict:
         import os
         import edge_tts
 
-        async def _tts(txt: str) -> str:
-            comm = edge_tts.Communicate(txt, voice="ur-PK-SwaraNeural")
-            tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
-            tmp_path = tmp.name
-            tmp.close()
-            try:
-                await comm.save(tmp_path)
-                with open(tmp_path, "rb") as f:
-                    data = f.read()
-                return base64.b64encode(data).decode("ascii")
-            finally:
+        async def _tts(txt: str):
+            for v in ("en-US-AriaNeural", "ur-PK-UzmaNeural"):
+                comm = edge_tts.Communicate(txt, voice=v)
+                tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+                tmp_path = tmp.name
+                tmp.close()
                 try:
-                    os.unlink(tmp_path)
+                    await comm.save(tmp_path)
+                    with open(tmp_path, "rb") as f:
+                        data = f.read()
+                    if data:
+                        return base64.b64encode(data).decode("ascii"), v
                 except Exception:
                     pass
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+            return "", ""
 
-        audio_b64 = asyncio.run(_tts(reply))
+        audio_b64, voice_used = asyncio.run(_tts(reply))
     except Exception:
-        audio_b64 = ""
+        audio_b64, voice_used = "", ""
     return {"ok": True, "reply": reply, "audio_base64": audio_b64,
-            "audio_mime": "audio/mpeg", "voice": "ur-PK-SwaraNeural"}
-
+            "audio_mime": "audio/mpeg", "voice": voice_used or "none"}
 
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     allow_reuse_address = True
@@ -290,7 +297,7 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Access-Control-Allow-Origin", "*")
-            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, ngrok-skip-browser-warning")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.end_headers()
             self.wfile.write(body)
@@ -315,7 +322,7 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(200)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization, ngrok-skip-browser-warning")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.end_headers()
 
@@ -362,7 +369,7 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
                     ping = "event: ping\ndata: {}\n\n"
                     self.wfile.write(ping.encode("utf-8"))
                     self.wfile.flush()
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, Exception):
                 pass
         elif clean_path == "/license_check":
             from urllib.parse import parse_qs, urlparse
@@ -669,7 +676,13 @@ def run_server(port: int = DEFAULT_PORT, token: str = "", enable_tunnel: bool = 
     print(f"👉 {final_mcp_url}")
     print(f"=======================================================\n")
 
-    server.serve_forever()
+    while True:
+        try:
+            server.serve_forever()
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            time.sleep(1.0)
 
 
 if __name__ == "__main__":
