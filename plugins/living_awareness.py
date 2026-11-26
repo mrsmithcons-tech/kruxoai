@@ -102,6 +102,8 @@ def _describe(state: dict) -> str:
     if u.get("mood") and u["mood"] != "unknown":
         parts.append(f"Understood mood: {u['mood']} (confidence {u.get('confidence', 'low')}, "
                      f"energy {u.get('energy', 'unknown')}, doing {u.get('intent', 'unknown')}).")
+    if state.get("avatar_mood") and state["avatar_mood"] != "unknown":
+        parts.append(f"My face is showing {state['avatar_mood']} right now.")
     return " ".join(parts)
 
 

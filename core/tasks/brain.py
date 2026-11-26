@@ -189,7 +189,10 @@ def ask(system: str, turns: list, decls: list | None) -> dict:
             msg = str(e)
             errors.append(f"{model}: {msg[:120]}")
             if gemini.is_quota_error(msg):
-                gemini._cool(model)
+                if not model.startswith(gemini.PROVIDER_PREFIX):
+                    gemini._cool_gemini_rest()
+                else:
+                    gemini._cool(model)
                 transient = True
             elif gemini.is_gone_error(msg):
                 gemini._cool(model, gemini._GONE_SECONDS)

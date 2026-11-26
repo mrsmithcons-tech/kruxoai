@@ -278,6 +278,22 @@ def _cool(model: str, seconds: float = _COOLDOWN_SECONDS) -> None:
             _gone.discard(model)
 
 
+def _cool_gemini_rest(seconds: float = _COOLDOWN_SECONDS) -> None:
+    """Cool all Gemini REST text models simultaneously on 429 quota exhaustion.
+
+    Google enforces free-tier quotas per project / API key rather than per model name;
+    when one model reports 429 RESOURCE_EXHAUSTED, trying the other 5 aliases on the
+    same key will 100% fail. Cooling them together lets the assistant immediately
+    fall over to working providers (Groq, OpenRouter) with zero wasted lag.
+    """
+    with _cool_lock:
+        now = time.monotonic()
+        for ladder in _LADDERS.values():
+            for m in ladder:
+                if m != LIVE and not m.startswith(PROVIDER_PREFIX):
+                    _cooldown[m] = now + seconds
+
+
 def usable_rungs(ladder) -> list:
     """The rungs worth trying now, in ladder order.
 
@@ -639,7 +655,7 @@ def _provider_settings() -> tuple[str, bool]:
 
 
 def _provider_rungs(tier: str) -> tuple[str, ...]:
-    """The configured side-call provider, as a ladder rung — or nothing.
+    """All configured side-call providers (primary first, then valid fallbacks).
 
     SEARCH is excluded deliberately. Grounded search needs
     `candidates[...].grounding_metadata`, which only Google's REST models
@@ -650,7 +666,26 @@ def _provider_rungs(tier: str) -> tuple[str, ...]:
     if tier == SEARCH:
         return ()
     pid, _ = _provider_settings()
-    return (PROVIDER_PREFIX + pid,) if pid else ()
+    rungs: list[str] = []
+    if pid:
+        rungs.append(PROVIDER_PREFIX + pid)
+
+    # Automatically add other configured OpenAI-compatible LLM providers
+    # so when one provider runs out of quota (429), the assistant seamlessly falls over
+    # to the next provider instead of halting with an error.
+    try:
+        from memory.config_manager import get_providers
+        creds = get_providers().get("creds", {})
+        for cid, cfg in creds.items():
+            if isinstance(cfg, dict) and cid.startswith("openai_compat@"):
+                if cfg.get("api_key") or cfg.get("base_url"):
+                    rung_id = PROVIDER_PREFIX + cid
+                    if rung_id not in rungs:
+                        rungs.append(rung_id)
+    except Exception:
+        pass
+
+    return tuple(rungs)
 
 
 def _provider_first() -> bool:
@@ -796,7 +831,10 @@ def call(contents, tier: str = FAST, config=None,
                 key_refused = True
                 print(f"[Gemini] the API key was refused — {msg[:120]}")
             elif is_quota_error(msg):
-                _cool(model)
+                if not model.startswith(PROVIDER_PREFIX):
+                    _cool_gemini_rest()
+                else:
+                    _cool(model)
                 print(f"[Gemini] {model}: out of quota — skipping it for "
                       f"{_COOLDOWN_SECONDS // 60} minutes")
             elif is_gone_error(msg):

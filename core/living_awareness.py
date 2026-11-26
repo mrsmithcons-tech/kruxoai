@@ -200,6 +200,7 @@ class LivingAwareness:
         self._last_rest_suggestion_date = ""
         self._last_judge_sig: Any = None
         self._last_brain_decision: Dict[str, Any] = {}
+        self._last_avatar_mood = "unknown"
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> bool:
@@ -285,6 +286,19 @@ class LivingAwareness:
             self._judge_should_speak(snapshot, cfg, now)
         snapshot["understanding"] = self._understanding
         snapshot["last_brain_decision"] = self._last_brain_decision
+        # The face mirrors the understood mood: tell the avatar (module-level
+        # mood store in core/avatar.py; the GUI thread reads it per frame).
+        # Only on change — a steady mood costs nothing.
+        mood = (self._understanding or {}).get("mood", "unknown")
+        snapshot["avatar_mood"] = mood
+        if mood != self._last_avatar_mood:
+            self._last_avatar_mood = mood
+            try:
+                from core.avatar import set_avatar_mood
+                set_avatar_mood(mood)
+                self._journal("avatar_mood", {"mood": mood})
+            except Exception as e:
+                self._log(f"[LivingAwareness] avatar mood failed: {e}")
 
         with self._lock:
             self._state = snapshot

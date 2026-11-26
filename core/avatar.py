@@ -83,6 +83,46 @@ _MIC_FLOOR = 0.14
 _CLOSE_FRAC = 0.10
 
 
+# ── mood (Living Awareness, 26 Nov 2026) ────────────────────────────────────
+# The living loop (background thread) sets the understood mood here with
+# set_avatar_mood(); the GUI thread reads it once per frame inside step().
+# A plain string store is atomic under the GIL — the same pattern as
+# JarvisUI.set_audio_level. Moods come from core/understanding.py (fused
+# face + voice + context) and are honest states, never "happy"/"sad" labels.
+_AVATAR_MOOD = "unknown"
+
+# mood: (brow_bias, lid_ceiling, gaze_reach, blink_gap_seconds or None)
+#   brow_bias: negative pulls the brows down (concentration / strain);
+#     positive lifts them (alert / bright).
+#   lid_ceiling: the lids never open past this (tired = heavy lids).
+#   gaze_reach: 1.0 = normal wandering, lower = steadier, calmer gaze.
+#   blink_gap: seconds between blinks when this mood holds (None = default).
+MOOD_FACE = {
+    "stressed":     (-0.30, 0.88, 0.45, 3.4),
+    "tired":        (-0.05, 0.55, 0.35, 6.5),
+    "tired_late":   (-0.05, 0.50, 0.30, 6.5),
+    "calm_focused": (-0.28, 1.00, 0.40, 5.5),
+    "energized":    (+0.12, 1.00, 0.90, 3.0),
+}
+
+
+def set_avatar_mood(mood: str) -> str:
+    """Set the face's mood (living loop thread). Returns the stored mood."""
+    global _AVATAR_MOOD
+    _AVATAR_MOOD = (mood or "unknown").strip().lower()
+    return _AVATAR_MOOD
+
+
+def get_avatar_mood() -> str:
+    return _AVATAR_MOOD
+
+
+def mood_face(mood: str) -> tuple:
+    """Face targets for a mood; unknown moods change nothing."""
+    return MOOD_FACE.get((mood or "unknown").strip().lower(),
+                         (0.0, 1.0, 1.0, None))
+
+
 def _rate(dt: float, tau: float) -> float:
     """Per-frame lerp factor for an exponential approach with time constant
     `tau`. Frame-rate independent: the motion takes the same wall-clock time at
@@ -251,7 +291,8 @@ class HoloAvatar:
              muted: bool = False, state: str = "",
              v_open: float | None = None, v_wide: float = 0.0,
              v_level: float | None = None,
-             v_seq: list | None = None, v_hop: float = 0.02) -> None:
+             v_seq: list | None = None, v_hop: float = 0.02,
+             mood: str | None = None) -> None:
         """Advance the animation.
 
         `amp` is the 0..1 display audio level. `v_open` / `v_wide` / `v_level`
@@ -359,6 +400,18 @@ class HoloAvatar:
             brow_bias = 0.10 if st == "LISTENING" else 0.0
             lid_tgt = 1.0
 
+        # ── mood: the face mirrors the understood mood (Living Awareness) ──
+        # An explicit `mood` argument wins; otherwise the module mood set by
+        # the living loop is used. Unknown moods change nothing. Applied on
+        # top of the state targets above, so SLEEPING still closes the lids
+        # and THINKING still looks away — mood only shades the face.
+        _mood = (mood if mood is not None else _AVATAR_MOOD or "unknown").lower()
+        _mb, _ml, _mr, _mgap = mood_face(_mood)
+        brow_bias = max(-0.4, min(1.2, brow_bias + _mb))
+        lid_tgt = min(lid_tgt, _ml)
+        self._mood_reach = _mr
+        self._mood_blink_gap = _mgap
+
         for i in (0, 1):
             self._gaze_bias[i] += (self._bias_tgt[i] - self._gaze_bias[i]) * 0.06
         self._lids += (lid_tgt - self._lids) * 0.08
@@ -369,6 +422,7 @@ class HoloAvatar:
         # right down — a darting eye reads as nervous, not thoughtful.
         if t >= self._gaze_at:
             reach = 0.9 if live else (0.35 if thinking else 0.55)
+            reach *= getattr(self, "_mood_reach", 1.0)
             self._gaze_tgt = [random.uniform(-1.0, 1.0) * reach,
                               random.uniform(-1.0, 1.0) * reach * 0.55]
             if live:
@@ -412,7 +466,9 @@ class HoloAvatar:
                 self._blink_at = t + 6.0
             else:
                 self._blink = 1.0
-                gap = 5.5 if thinking else 3.4
+                gap = getattr(self, "_mood_blink_gap", None)
+                if gap is None:
+                    gap = 5.5 if thinking else 3.4
                 self._blink_at = t + gap + 3.1 * random.random()
 
     def glance(self, dx: float, dy: float, hold: float = 1.1) -> None:

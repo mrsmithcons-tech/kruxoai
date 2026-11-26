@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,7 +24,8 @@ PLUGIN = {
     "name": "morning_briefing",
     "description": (
         "Deliver the executive morning briefing to Faisal: summarizes how you slept overnight "
-        "(sleep duration, position changes, snoring, disruptions), system health, battery level, "
+        "(sleep duration, position changes, snoring, disruptions), what happened overnight in "
+        "the living journal, how you woke up (mood, weather), system health, battery level, "
         "and overnight upgrades developed by JARVIS."
     ),
     "parameters": {
@@ -107,6 +108,85 @@ def _get_recent_upgrades() -> list[str]:
     return upgrades
 
 
+def _get_overnight_journal() -> str:
+    """What happened while Faisal slept (21:00 – 06:00), from the living
+    journal: app changes, returns, unknown voices, tired nudges, and what
+    the proactive brain said or decided. Counts + the notable lines only —
+    the full timeline stays in memory/living_journal.jsonl."""
+    log_file = MEMORY_DIR / "living_journal.jsonl"
+    if not log_file.exists():
+        return "No overnight journal yet — living awareness only started recording recently."
+    try:
+        now = datetime.now()
+        start = (now - timedelta(days=1)).replace(hour=21, minute=0, second=0, microsecond=0)
+        end = now.replace(hour=6, minute=0, second=0, microsecond=0)
+        if now.hour < 6:  # before 6 AM the night started yesterday 21:00, ends now
+            end = now
+        events = []
+        for line in log_file.read_text(encoding="utf-8").splitlines():
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            try:
+                ts = datetime.fromisoformat(e.get("ts", ""))
+            except Exception:
+                continue
+            if start <= ts <= end:
+                events.append(e)
+        if not events:
+            return "Nothing recorded overnight — the machine was quiet all night."
+        kinds: dict = {}
+        for e in events:
+            kinds[e.get("kind", "?")] = kinds.get(e.get("kind", "?"), 0) + 1
+        summary = ", ".join(f"{n} {k}" for k, n in kinds.items())
+        lines = [f"- **{len(events)} events overnight:** {summary}"]
+        notable = [e for e in events
+                   if e.get("kind") in ("unknown_speaker", "proactive_brain",
+                                        "tired_nudge", "return")]
+        for e in notable[-3:]:
+            when = e.get("ts", "")[11:16]
+            if e.get("kind") == "proactive_brain":
+                lines.append(f"- {when} — I said: “{e.get('text', '')}”")
+            elif e.get("kind") == "unknown_speaker":
+                lines.append(f"- {when} — an unrecognized voice was heard.")
+            elif e.get("kind") == "tired_nudge":
+                lines.append(f"- {when} — I suggested rest (mood {e.get('mood', '')}).")
+            else:
+                lines.append(f"- {when} — you came back ({e.get('speaker', '')}).")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"Could not read the overnight journal: {e}"
+
+
+def _get_waking_awareness() -> str:
+    """How Faisal woke up: understood mood + outside weather, from the
+    living state file. Honest 'not recorded' when the loop was off."""
+    state_file = MEMORY_DIR / "living_state.json"
+    if not state_file.exists():
+        return "Awareness state not recorded yet."
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+        u = state.get("understanding") or {}
+        env = state.get("environment") or {}
+        outside = env.get("outside") or {}
+        bits = []
+        if u.get("mood") and u["mood"] != "unknown":
+            bits.append(f"- **Mood on waking:** {u['mood']} "
+                        f"(confidence {u.get('confidence', 'low')}, "
+                        f"energy {u.get('energy', 'unknown')})")
+            if u.get("suggestion"):
+                bits.append(f"- **Suggestion:** {u['suggestion']}")
+        if outside.get("temp_c") is not None:
+            bits.append(f"- **Outside:** {outside.get('place', '')} "
+                        f"{outside['temp_c']}°C, {outside.get('conditions') or ''}")
+        if state.get("avatar_mood") and state["avatar_mood"] != "unknown":
+            bits.append(f"- **Avatar face:** showing {state['avatar_mood']}")
+        return "\n".join(bits) if bits else "Awareness state not recorded yet."
+    except Exception as e:
+        return f"Could not read the awareness state: {e}"
+
+
 def run(parameters: dict, player=None, session_memory=None) -> str:
     try:
         now = datetime.now()
@@ -114,6 +194,8 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         time_str = now.strftime("%I:%M %p")
 
         sleep_summary = _get_sleep_summary()
+        overnight_journal = _get_overnight_journal()
+        waking_awareness = _get_waking_awareness()
         sys_metrics, bat_metrics = _get_system_metrics()
         upgrades = _get_recent_upgrades()
 
@@ -125,6 +207,12 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             f"---\n\n"
             f"### 🌙 Overnight Sleep & Room Sentinel\n"
             f"{sleep_summary}\n\n"
+            f"---\n\n"
+            f"### 🌃 Overnight — While You Slept\n"
+            f"{overnight_journal}\n\n"
+            f"---\n\n"
+            f"### 🧠 Awareness On Waking\n"
+            f"{waking_awareness}\n\n"
             f"---\n\n"
             f"### ⚡ Hardware & Power Status\n"
             f"- **Power:** {bat_metrics}\n"
