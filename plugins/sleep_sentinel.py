@@ -17,6 +17,11 @@ Full-night autonomous sleep monitoring and room activity analysis:
 4. Executive Morning Dashboard:
    - Formats a comprehensive Markdown report with timeline, tables, and statistics.
    - Streams directly to the HUD Content Panel and records in memory/sleep_tracker_log.json.
+
+NIGHT WINDOW (Faisal, 26 Nov 2026): monitoring runs 9:00 PM – 6:00 AM ONLY.
+Outside that window the camera frames are ignored and the microphone is
+not recorded at all; at 6:00 AM the night is closed once with the morning
+report and the per-night state is reset for the next night.
 """
 from __future__ import annotations
 
@@ -37,9 +42,10 @@ LONG_TERM_FILE = MEMORY_DIR / "long_term.json"
 PLUGIN = {
     "name": "sleep_sentinel",
     "description": (
-        "Overnight sleep and room activity sentinel. Monitors your sleep quality, "
-        "tracks when you fall asleep and wake up, logs every position change, yawn, "
-        "or snore, and generates a comprehensive morning sleep report on the HUD panel."
+        "Overnight sleep and room activity sentinel, active 9:00 PM – 6:00 AM only. "
+        "Monitors your sleep quality, tracks when you fall asleep and wake up, logs "
+        "every position change, yawn, or snore, and generates a comprehensive morning "
+        "sleep report on the HUD panel. Outside the night window it records nothing."
     ),
     "parameters": {
         "type": "OBJECT",
@@ -54,9 +60,25 @@ PLUGIN = {
     }
 }
 
+# ── Night window: 9:00 PM – 6:00 AM ONLY (Faisal, 26 Nov 2026) ───────────────
+# Outside this window the sentinel records nothing: camera frames are ignored
+# in on_video_frame and the microphone is never opened in the audio loop.
+NIGHT_START_HOUR = 21  # 9 PM
+NIGHT_END_HOUR = 6     # 6 AM
+
+
+def _in_night_window(now=None) -> bool:
+    """True only between 9 PM and 6 AM (local time)."""
+    hour = (now or datetime.now()).hour
+    return hour >= NIGHT_START_HOUR or hour < NIGHT_END_HOUR
+
+
+_LAST_REPORT_DATE = ""  # YYYY-MM-DD of the last morning report (one per day)
+
+
 # ── Sleep Sentinel State ──────────────────────────────────────────────────────
 
-_MONITOR_ACTIVE = True  # Armed automatically for night monitoring
+_MONITOR_ACTIVE = True  # Armed automatically; the night window gates all recording
 _SESSION_START_TIME = time.time()
 _LIGHTS_OFF_TIME: float | None = None
 _SLEEP_ONSET_TIME: float | None = None
@@ -127,10 +149,13 @@ def on_video_frame(frame, gray, faces):
     """Analyze incoming webcam frame for motion, position shifts, yawns, and lighting."""
     global _PREV_GRAY, _LAST_MOTION_TIME, _LAST_POSITION_CHANGE_TIME
     global _IS_SLEEPING, _SLEEP_ONSET_TIME, _WAKE_TIME, _LIGHTS_OFF_TIME
-    global _LAST_LIGHT_STATE
+    global _LAST_LIGHT_STATE, _LAST_REPORT_DATE
 
     if not _MONITOR_ACTIVE or frame is None or gray is None:
         return
+
+    if not _in_night_window():
+        return  # Sleep Sentinel runs 9 PM – 6 AM only; daytime frames are ignored
 
     now = time.time()
     now_str = datetime.now().strftime("%I:%M %p")
@@ -160,6 +185,8 @@ def on_video_frame(frame, gray, faces):
                 if _IS_SLEEPING:
                     _IS_SLEEPING = False
                     _generate_morning_report(player)
+                    _LAST_REPORT_DATE = datetime.now().date().isoformat()
+                    _reset_night_state()
 
     except Exception:
         pass
@@ -257,6 +284,13 @@ def _audio_snore_listener_loop():
 
     while _AUDIO_LISTENER_ACTIVE:
         try:
+            if not _in_night_window():
+                # Outside 9 PM–6 AM the microphone is never opened. At 6 AM
+                # the night is closed once with the morning report.
+                _end_night_session(_get_player())
+                time.sleep(30)
+                continue
+
             # Record 1 second audio chunk non-blocking
             audio = sd.rec(chunk_size, samplerate=sample_rate, channels=1, dtype="float32")
             sd.wait()
@@ -328,6 +362,42 @@ t_audio.start()
 
 
 # ── Sleep Analytics & Morning Report Generator ────────────────────────────────
+
+def _reset_night_state():
+    """Clear the per-night state so the next night starts clean."""
+    global _IS_SLEEPING, _SLEEP_ONSET_TIME, _WAKE_TIME, _LIGHTS_OFF_TIME
+    global _SESSION_START_TIME, _LAST_POSITION_CHANGE_TIME, _LAST_MOTION_TIME
+    _IS_SLEEPING = False
+    _SLEEP_ONSET_TIME = None
+    _WAKE_TIME = None
+    _LIGHTS_OFF_TIME = None
+    _SESSION_START_TIME = time.time()
+    _LAST_MOTION_TIME = time.time()
+    _LAST_POSITION_CHANGE_TIME = 0.0
+    with _LOCK:
+        _POSITION_CHANGES.clear()
+        _SNORE_EVENTS.clear()
+        _YAWN_EVENTS.clear()
+        _ROOM_NOISE_EVENTS.clear()
+        _LIGHT_EVENTS.clear()
+
+
+def _end_night_session(player=None) -> str:
+    """Close the night once (at 6 AM, or on 'stop'): report once per day,
+    then reset for the next night. A second call the same day does nothing
+    but reset — the morning report is never delivered twice."""
+    global _LAST_REPORT_DATE
+    today = datetime.now().date().isoformat()
+    had_night = bool(_IS_SLEEPING or _SLEEP_ONSET_TIME or _POSITION_CHANGES
+                     or _SNORE_EVENTS or _YAWN_EVENTS)
+    if not had_night or _LAST_REPORT_DATE == today:
+        _reset_night_state()
+        return "No sleep session to report."
+    _LAST_REPORT_DATE = today
+    report = _generate_morning_report(player)
+    _reset_night_state()
+    return report
+
 
 def _generate_morning_report(player=None) -> str:
     """Build and deliver the executive full-night sleep report card."""
@@ -443,11 +513,17 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         global _MONITOR_ACTIVE, _SESSION_START_TIME
         _MONITOR_ACTIVE = True
         _SESSION_START_TIME = time.time()
+        if not _in_night_window():
+            # Outside 9 PM–6 AM the sentinel does not record. It arms itself
+            # at 9 PM — the window gates in on_video_frame and the audio loop.
+            return ("Sleep Sentinel is scheduled for tonight, 9:00 PM – 6:00 AM. "
+                    "It is off right now and will arm itself at 9 PM. "
+                    "Outside the night window it records nothing.")
         if player:
             player.show_content(
                 "🌙 Sleep Sentinel Armed",
                 "### 🌙 Overnight Sleep Sentinel Active\n\n"
-                "JARVIS is monitoring your room throughout the night:\n"
+                "JARVIS is monitoring your room throughout the night (9 PM – 6 AM):\n"
                 "• **Webcam:** Tracking motion, body position shifts, yawns, and lighting.\n"
                 "• **Microphone:** Tracking breathing, snoring, and room noises.\n"
                 "• **Morning Report:** Full timeline and sleep quality score will appear when you wake up.\n\n"
@@ -460,12 +536,15 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         return _generate_morning_report(player)
 
     elif action == "status":
+        if not _in_night_window():
+            return ("Sleep Sentinel is off right now — it only runs 9:00 PM to "
+                    "6:00 AM. Next session starts tonight at 9 PM.")
         num_pos = len(_POSITION_CHANGES)
         num_snore = len(_SNORE_EVENTS)
         return f"Sleep sentinel is active. Tonight I have logged {num_pos} position shifts and {num_snore} snoring episodes."
 
     elif action == "stop":
         _MONITOR_ACTIVE = False
-        return _generate_morning_report(player)
+        return _end_night_session(player)
 
     return "Sleep Sentinel is active."

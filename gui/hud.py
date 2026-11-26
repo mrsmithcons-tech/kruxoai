@@ -346,7 +346,10 @@ class HudCanvas(QWidget):
 
         if self._cyber_female is not None and self.hud_style == "female_realistic":
             self._cyber_female.step(dt, amp, speaking=self.speaking,
-                                    muted=self.muted, state=self.state)
+                                    muted=self.muted, state=self.state,
+                                    v_open=v_open, v_wide=v_wide or 0.0,
+                                    v_level=v_level, v_seq=v_seq,
+                                    v_hop=(sched[2] if sched is not None else 0.02))
         elif self._avatar is not None and self.hud_style == "face":
             self._avatar.step(dt, amp, speaking=self.speaking,
                               muted=self.muted, state=self.state,
