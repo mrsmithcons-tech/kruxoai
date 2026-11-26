@@ -1432,6 +1432,11 @@ class JarvisLive:
             f"Always refer to yourself as {self._asst_name}.\n"
             f"{_addr}\n\n"
             f"{lic_ctx}"
+            f"[BUILT-IN SERVICES]\n"
+            f"You host a built-in Streamable HTTP Model Context Protocol (MCP) server running on local port 9877 "
+            f"(endpoint: http://localhost:9877/mcp, public tunnel: https://stabilize-gladly-possibly.ngrok-free.dev/mcp). "
+            f"When the user asks whether the MCP server is live, or to start, restart, or check its status or URL, "
+            f"ALWAYS call the `mcp_server` tool to check or control it.\n\n"
         )
 
         # Everything the model is told about *itself* is derived here, not

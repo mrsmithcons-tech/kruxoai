@@ -193,7 +193,7 @@ class FeatureMonitorWidget(QWidget):
             ("vision", "👁️", "VISION & SENSORS", "SENSING LIVE",
              "Environment & Screen Eye Active · Real-time Sensor", "GREEN"),
             ("tasks", "⚙️", "BACKGROUND TASKS", "RUNNING",
-             "Living Loop · MCP Server (Port 8000) · Self-Healing Watchdog", "GREEN"),
+             "Living Loop · MCP Server (Port 9877) · Self-Healing Watchdog", "GREEN"),
         ]
         for fid, icon, name, status, detail, ck in defaults:
             self.add_feature(fid, icon, name, status, detail, ck)

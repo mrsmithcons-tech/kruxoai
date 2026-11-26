@@ -1269,7 +1269,7 @@ class MainWindow(QMainWindow):
                 if not getattr(self, "_call_mode_active", False) and not getattr(self, "_muted", False):
                     self._feat_sig.emit("call_shield", "RUNNING", "Live Call Interceptor Armed · Hotkeys F4 / Pause Active", "GREEN")
                 self._feat_sig.emit("plugins", "45 ACTIVE", "45 Tools Loaded & Armed · Auto-Dispatch Ready", "GREEN")
-                self._feat_sig.emit("tasks", "RUNNING", "Living Loop · MCP Server (Port 8000) · Watchdog Active", "GREEN")
+                self._feat_sig.emit("tasks", "RUNNING", "Living Loop · MCP Server (Port 9877) · Watchdog Active", "GREEN")
             except Exception:
                 pass
 
