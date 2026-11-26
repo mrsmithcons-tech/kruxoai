@@ -14,7 +14,7 @@ ping 127.0.0.1 -n 2 >nul
 echo [*] Audio streams and UI memory cleared.
 echo [*] Launching KruxoAI Desktop System...
 echo.
-start "" "C:\Python314\python.exe" main.py
+start "" "C:\Python314\pythonw.exe" main.py
 echo [OK] KruxoAI has been restarted successfully!
 ping 127.0.0.1 -n 3 >nul
 exit

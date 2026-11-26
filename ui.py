@@ -113,6 +113,9 @@ class JarvisUI:
         self._win = MainWindow(face_path)
         self.root = _RootShim(self._app)
         self._win.show()
+        self._win.showNormal()
+        self._win.raise_()
+        self._win.activateWindow()
 
     @property
     def muted(self) -> bool:

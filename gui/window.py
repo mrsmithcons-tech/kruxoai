@@ -138,11 +138,12 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(_MIN_W, _MIN_H)
         self.resize(_DEFAULT_W, _DEFAULT_H)
 
-        screen = QApplication.primaryScreen().availableGeometry()
-        self.move(
-            (screen.width()  - _DEFAULT_W) // 2,
-            (screen.height() - _DEFAULT_H) // 2,
-        )
+        primary = QApplication.primaryScreen()
+        if primary is not None:
+            geom = primary.availableGeometry()
+            x = geom.x() + max(0, (geom.width() - _DEFAULT_W) // 2)
+            y = geom.y() + max(0, (geom.height() - _DEFAULT_H) // 2)
+            self.move(x, y)
 
         self.on_text_command   = None
         self.on_remote_clicked = None   # callable: () -> (url, key) | None

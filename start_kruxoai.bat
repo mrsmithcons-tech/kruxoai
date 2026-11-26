@@ -1,5 +1,6 @@
 @echo off
-title KruxoAI — Desktop Launcher
+cd /d "%~dp0"
+title KruxoAI - Desktop Launcher
 color 0b
 echo ======================================================================
 echo                     KRUXOAI DESKTOP LAUNCHER
@@ -8,5 +9,5 @@ echo ======================================================================
 echo.
 echo [*] Starting KruxoAI Desktop System...
 echo.
-start "" python main.py
+start "" "C:\Python314\pythonw.exe" main.py
 exit
