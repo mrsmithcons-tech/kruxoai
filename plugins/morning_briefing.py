@@ -159,6 +159,17 @@ def _get_overnight_journal() -> str:
         return f"Could not read the overnight journal: {e}"
 
 
+def _get_what_i_remember() -> str:
+    """Layer 5 — what Zara remembers, for the morning briefing. People
+    Faisal told her about, recent moments, late-night streak. Honest when
+    the memory is still empty."""
+    try:
+        from core.personal_memory import what_i_remember
+        return what_i_remember()
+    except Exception:
+        return "Memory not available right now."
+
+
 def _get_waking_awareness() -> str:
     """How Faisal woke up: understood mood + outside weather, from the
     living state file. Honest 'not recorded' when the loop was off."""
@@ -196,6 +207,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
         sleep_summary = _get_sleep_summary()
         overnight_journal = _get_overnight_journal()
         waking_awareness = _get_waking_awareness()
+        what_i_remember = _get_what_i_remember()
         sys_metrics, bat_metrics = _get_system_metrics()
         upgrades = _get_recent_upgrades()
 
@@ -213,6 +225,9 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             f"---\n\n"
             f"### 🧠 Awareness On Waking\n"
             f"{waking_awareness}\n\n"
+            f"---\n\n"
+            f"### 💛 What I Remember\n"
+            f"{what_i_remember}\n\n"
             f"---\n\n"
             f"### ⚡ Hardware & Power Status\n"
             f"- **Power:** {bat_metrics}\n"

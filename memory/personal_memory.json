@@ -1,0 +1,17 @@
+{
+  "people": [
+    {
+      "name": "Ammi",
+      "relation": "mother",
+      "note": ""
+    }
+  ],
+  "moments": [
+    {
+      "ts": "2026-11-26T14:50:32",
+      "kind": "stress_streak",
+      "text": "stressed for three readings in a row"
+    }
+  ],
+  "since": "2026-11-26"
+}

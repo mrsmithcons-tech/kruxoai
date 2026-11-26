@@ -16,19 +16,28 @@ matters. Security events ignore the cooldown. Never raises: every sensor
 read is guarded, and a failed sensor is reported honestly in the state
 ("screen": "unknown") instead of being guessed.
 
-Layer 3 — Awareness upgrade (26 Nov 2026, Faisal: "like Stonic"):
-  * Senses: core/environment.py — time of day, outside weather in
-    Tandlianwala (Open-Meteo, cached), CPU temperature when the machine
-    exposes it (honestly None when it does not).
-  * Toggle: memory/living_config.json — awareness_enabled / proactive_enabled,
-    read every tick, so "awareness off" takes effect without a restart.
-    Quiet hours 9 PM – 6 AM: the loop never speaks then (sleep sentinel
-    owns the night). Awareness OFF also silences all proactive speech.
-  * Proactive brain: every ~5 minutes, when something actually changed
-    (mood, app, hour, battery, extreme weather), the model judges from the
-    fused state whether to speak — one short formal sentence, no pet names,
-    never when stressed unless urgent. A failed judge call just means the
-    small rules carry on; the loop never depends on the model.
+Layer 5 — Emotional character (26 Nov 2026, Faisal: "emotional character
+that lives inside"). Stonic's 'Love' remembers the man's mother, that he
+stayed up four nights, that he misses her — and brings it up with care.
+Kruxo does the same, in its own formal way (Zara: formal, warm, caring;
+short replies; no pet names, no romantic words — his standing rule):
+  * Personal memory (core/personal_memory.py): people only as Faisal tells
+    her; moments the loop itself observed (late nights, tired streaks,
+    returns); patterns computed from the journal (late-night streak).
+    All local, in memory/personal_memory.json.
+  * Late-night check-in: once per night, if he is still active after
+    23:00, one gentle line — the one exception to quiet hours, gated by
+    config late_night_checkin and the once-per-night guard.
+  * Morning greeting: once a day (06:00–09:00), a warm formal line that
+    remembers last night ("You were up late last night — I kept
+    everything ready for you.").
+  * Character card (memory/character.json): Zara's name, role, tone and
+    rules; the brain's system prompt carries them, so proactive lines
+    sound like her. Plugin actions: what_do_you_remember, who_are_you,
+    remember, character_card.
+  * Kept from the laptop's 14:24 version: every tick pushes the live
+    environment (outside temp/conditions, time of day) to the HUD's Live
+    Feature Monitor via ui.JarvisUI.update_feature ("vision"/"tasks").
 
 Drop this file into core/ as core/living_awareness.py. It starts itself
 through the watchdog (core/watchdog.py, next to the office_rhythm check),
@@ -69,6 +78,7 @@ DEFAULT_CONFIG = {
     "proactive_enabled": True,         # proactive speech + brain; state still updates when off
     "quiet_hours_start": QUIET_START_HOUR,
     "quiet_hours_end": QUIET_END_HOUR,
+    "late_night_checkin": True,        # Layer 5: one gentle line per night after 23:00
 }
 
 _config_cache = {"mtime": 0.0, "data": dict(DEFAULT_CONFIG)}
@@ -201,6 +211,12 @@ class LivingAwareness:
         self._last_judge_sig: Any = None
         self._last_brain_decision: Dict[str, Any] = {}
         self._last_avatar_mood = "unknown"
+        # Layer 5 — emotional character: once-per-night / once-per-day guards
+        # and the mood streak (consecutive stressed/tired readings).
+        self._last_night_checkin_date = ""
+        self._last_morning_greeting_date = ""
+        self._mood_streak = 0
+        self._personal_summary: Dict[str, Any] = {}
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> bool:
@@ -284,7 +300,9 @@ class LivingAwareness:
         if self._tick_count == 1 or self._tick_count % JUDGE_EVERY_TICKS == 0:
             self._refresh_understanding(snapshot)
             self._judge_should_speak(snapshot, cfg, now)
+            self._refresh_personal_summary()
         snapshot["understanding"] = self._understanding
+        snapshot["personal_memory"] = self._personal_summary
         snapshot["last_brain_decision"] = self._last_brain_decision
         # The face mirrors the understood mood: tell the avatar (module-level
         # mood store in core/avatar.py; the GUI thread reads it per frame).
@@ -303,9 +321,11 @@ class LivingAwareness:
         with self._lock:
             self._state = snapshot
         self._save_state(snapshot)
+        self._update_personal_memory(snapshot, now)
         self._evaluate_rules(snapshot, now, minutes_on_app)
 
         # Push real-time environment sensor data to Live Feature Monitor
+        # (kept from the laptop's 14:24 version — Faisal/self-evolution).
         try:
             from ui import JarvisUI
             _ui = self.player or JarvisUI.get_active()
@@ -320,6 +340,42 @@ class LivingAwareness:
                 _ui.update_feature("tasks", "RUNNING", f"Living Loop Tick #{self._tick_count} · Watchdog Active", "GREEN")
         except Exception:
             pass
+
+    def _refresh_personal_summary(self) -> None:
+        """Memory panel data, every ~5 minutes (journal read is small)."""
+        try:
+            from core.personal_memory import memory_summary
+            self._personal_summary = memory_summary()
+        except Exception as e:
+            self._log(f"[LivingAwareness] personal memory refresh failed: {e}")
+
+    def _update_personal_memory(self, snapshot: Dict[str, Any], now: float) -> None:
+        """Layer 5: note what the loop observed, so Zara remembers.
+
+        Late nights and mood streaks are recorded once per day / per streak —
+        never twice. Runs every tick but does almost nothing outside the
+        night and morning windows."""
+        try:
+            from core.personal_memory import late_night_streak, note_moment
+        except Exception:
+            return
+        hour = datetime.now().hour
+        mood = (self._understanding or {}).get("mood", "unknown")
+        # Mood streak: consecutive stressed/tired readings (~5 min apart).
+        if mood in ("stressed", "tired", "tired_late"):
+            self._mood_streak += 1
+            if self._mood_streak == 3:
+                note_moment("stress_streak",
+                            f"{mood} for three readings in a row")
+        else:
+            self._mood_streak = 0
+        # Late night: still active after 23:00.
+        if hour >= 23:
+            streak = late_night_streak()
+            note_moment("late_night",
+                        "Up late after 11 PM" +
+                        (f" — {streak + 1} nights in a row" if streak >= 1
+                         else ""))
 
     # -- proactive brain -----------------------------------------------------
     def _judge_signature(self, snap: Dict[str, Any]) -> tuple:
@@ -367,6 +423,12 @@ class LivingAwareness:
         u = snap.get("understanding") or {}
         env = snap.get("environment") or {}
         outside = env.get("outside") or {}
+        memory_line = ""
+        try:
+            from core.personal_memory import what_i_remember
+            memory_line = f"What I remember: {what_i_remember()} "
+        except Exception:
+            pass
         summary = (
             f"Time: {datetime.now():%H:%M} ({env.get('time_of_day', 'unknown')}). "
             f"App: {(snap.get('app') or {}).get('app', 'unknown')} "
@@ -378,9 +440,18 @@ class LivingAwareness:
             f"CPU {snap.get('system', {}).get('cpu_percent')}%, "
             f"memory {snap.get('system', {}).get('memory_percent')}%. "
             f"Battery: {(snap.get('system', {}).get('battery') or {}).get('percent')}%."
+            f" {memory_line}"
         )
+        char_name = "Zara"
+        try:
+            from core.personal_memory import load_character
+            char_name = str(load_character().get("name") or "Zara")
+        except Exception:
+            pass
         system = (
-            "You are the decision brain of Kruxo AI, a formal desktop assistant. "
+            f"You are the decision brain of Kruxo AI, a formal desktop assistant. "
+            f"Your character is {char_name}: formal, warm, caring — an emotional "
+            f"character that lives inside this PC and remembers Faisal. "
             "Decide whether to interrupt Faisal with ONE short spoken line. "
             "Reply with JSON only: {\"speak\": true/false, \"text\": \"...\", \"reason\": \"...\"}. "
             "Speak ONLY when something genuinely deserves interrupting him: a real change "
@@ -472,6 +543,53 @@ class LivingAwareness:
                       security=True)
             self._journal("unknown_speaker", {"speaker": speaker})
 
+        # Layer 5 — late-night check-in: once per night, still active after
+        # 23:00. The one exception to quiet hours (config late_night_checkin,
+        # default on): a living character notices when he is up late and
+        # asks with care — it never nags, never repeats the same night.
+        hour = datetime.now().hour
+        today = datetime.now().date().isoformat()
+        cfg = load_living_config()
+        if (hour >= 23 and cfg.get("late_night_checkin", True)
+                and self._last_night_checkin_date != today
+                and app != "unknown"):
+            self._last_night_checkin_date = today
+            try:
+                from core.personal_memory import late_night_streak
+                streak = late_night_streak()
+            except Exception:
+                streak = 0
+            if streak >= 2:
+                line = (f"It is past 11 PM, Faisal — {streak} nights in a row "
+                        "now. Are you all right?")
+            elif mood in ("tired", "tired_late"):
+                line = "It is past 11 PM and you look tired, Faisal. Shall I keep everything short tonight?"
+            else:
+                line = "It is past 11 PM, Faisal. You are still working — is everything all right?"
+            self._act(line, security=False, night=True)
+            self._journal("night_checkin", {"hour": hour, "streak": streak})
+
+        # Layer 5 — morning greeting: once a day, 06:00–09:00, warm and
+        # formal, remembering last night.
+        if (6 <= hour <= 9 and self._last_morning_greeting_date != today
+                and app != "unknown"):
+            self._last_morning_greeting_date = today
+            try:
+                from core.personal_memory import late_night_streak
+                streak = late_night_streak()
+            except Exception:
+                streak = 0
+            if streak >= 2:
+                line = (f"Good morning, Faisal. You were up late {streak} nights "
+                        "in a row — I kept everything ready for you.")
+            elif streak == 1:
+                line = ("Good morning, Faisal. You were up late last night — "
+                        "I kept everything ready for you.")
+            else:
+                line = "Good morning, Faisal. A fresh day — I am here."
+            self._act(line, security=False)
+            self._journal("morning_greeting", {"streak": streak})
+
     # -- acting / remembering ----------------------------------------------
     def _send_hud_panel(self, title: str, text: str, speak: str = "") -> None:
         """Same delivery as core/proactive_rhythm.py: local HUD panel endpoint."""
@@ -487,13 +605,18 @@ class LivingAwareness:
         except Exception:
             pass
 
-    def _act(self, text: str, security: bool = False) -> None:
+    def _act(self, text: str, security: bool = False, night: bool = False) -> None:
+        """Speak one line. The Awareness toggle and the 15-minute cooldown
+        always apply. Quiet hours (9 PM – 6 AM) block speech — except the
+        once-per-night late-night check-in (night=True), which is the
+        emotional character noticing he is still up; it is one line per
+        night and never repeats."""
         now = time.time()
         if not security:
             cfg = load_living_config()
             if not cfg.get("awareness_enabled", True):
                 return  # Awareness toggle OFF: the loop stays silent
-            if _in_quiet_hours(cfg):
+            if _in_quiet_hours(cfg) and not night:
                 return  # 9 PM – 6 AM: sleep sentinel owns the night
         if not security and now - self._last_spoke_at < SPEAK_COOLDOWN_SECONDS:
             return  # stay quiet: a living AI does not nag

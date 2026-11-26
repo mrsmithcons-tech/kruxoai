@@ -16,6 +16,12 @@ Actions:
   awareness_status    — toggle state + quiet hours + last brain decision
   awareness_card      — show the "mind" panel on the HUD: toggle, senses,
                         mood, last brain decision (the visible Awareness panel)
+  what_do_you_remember — Layer 5: what Zara remembers — people Faisal told
+                        her about, moments she observed, late-night streaks
+  who_are_you         — Layer 5: Zara's character — name, role, tone, rules
+  remember            — Layer 5: remember a person (name/relation/note) or
+                        a moment (text), exactly as Faisal said it
+  character_card      — Layer 5: show the Character + Memory panel on the HUD
 
 Model calls, if ever needed, go through core.gemini (template rule).
 This plugin never raises: it returns a spoken error string instead.
@@ -28,12 +34,15 @@ from pathlib import Path
 PLUGIN = {
     "name": "living_awareness",
     "description": (
-        "Kruxo AI's living awareness: what it sees right now on this machine "
-        "(foreground app, system load, battery, who is in the room, outside "
-        "weather, time of day), what happened today, and the Awareness toggle. "
-        "Use this when the user asks what you see, what is happening, what "
-        "happened today, how you feel, or to turn awareness on/off or go quiet. "
-        "Do NOT use it for general chat or web questions."
+        "Kruxo AI's living awareness and emotional character Zara: what she "
+        "sees right now on this machine (foreground app, system load, battery, "
+        "who is in the room, outside weather, time of day), what happened "
+        "today, what she remembers about Faisal (people he told her about, "
+        "moments she observed, late-night streaks), who she is, and the "
+        "Awareness toggle. Use this when the user asks what you see, what is "
+        "happening, what happened today, how you feel, what you remember, who "
+        "you are, to remember someone or something, or to turn awareness on/off "
+        "or go quiet. Do NOT use it for general chat or web questions."
     ),
     "parameters": {
         "type": "OBJECT",
@@ -43,9 +52,19 @@ PLUGIN = {
                 "enum": ["status", "what_do_you_see", "what_happened_today",
                          "how_am_i_feeling", "what_do_you_understand",
                          "awareness_on", "awareness_off", "awareness_status",
-                         "awareness_card", "start", "stop"],
+                         "awareness_card", "what_do_you_remember",
+                         "who_are_you", "remember", "character_card",
+                         "start", "stop"],
                 "description": "What to do (default: what_do_you_see).",
             },
+            "name": {"type": "STRING",
+                     "description": "For remember: the person's name."},
+            "relation": {"type": "STRING",
+                         "description": "For remember: how they are related to Faisal."},
+            "note": {"type": "STRING",
+                     "description": "For remember: a short note about the person."},
+            "text": {"type": "STRING",
+                     "description": "For remember: a moment to remember, in Faisal's words."},
         },
         "required": [],
     },
@@ -104,7 +123,52 @@ def _describe(state: dict) -> str:
                      f"energy {u.get('energy', 'unknown')}, doing {u.get('intent', 'unknown')}).")
     if state.get("avatar_mood") and state["avatar_mood"] != "unknown":
         parts.append(f"My face is showing {state['avatar_mood']} right now.")
+    mem = state.get("personal_memory") or {}
+    if mem.get("last_moment"):
+        parts.append(f"I remember: {mem['last_moment']}.")
     return " ".join(parts)
+
+
+def _memory_panel(state: dict) -> str:
+    """Layer 5 — the Memory panel (Stonic-style): people, moments, streaks."""
+    try:
+        from core.personal_memory import what_i_remember
+        return what_i_remember()
+    except Exception:
+        return "I could not read my memory right now."
+
+
+def _character_panel() -> str:
+    """Layer 5 — the Character panel: who Zara is."""
+    try:
+        from core.personal_memory import load_character
+        c = load_character()
+        lines = [f"I am {c.get('name', 'Zara')} — {c.get('role', '')}.",
+                 f"My tone is {c.get('tone', 'formal, warm, caring')}."]
+        for rule in (c.get("rules") or []):
+            lines.append(f"- {rule}")
+        return " ".join(lines)
+    except Exception:
+        return "I am Zara, an emotional character that lives inside this PC."
+
+
+def _character_card(state: dict) -> str:
+    """Layer 5 — the Character + Memory card for the HUD."""
+    try:
+        from core.personal_memory import load_character
+        c = load_character()
+        name = c.get("name", "Zara")
+    except Exception:
+        name = "Zara"
+    lines = [
+        f"### 💛 {name} — Character & Memory",
+        "",
+        _character_panel(),
+        "",
+        "**What I remember:**",
+        _memory_panel(state),
+    ]
+    return "\n".join(lines)
 
 
 def _awareness_card(state: dict) -> str:
@@ -209,6 +273,38 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
                     else "Living mode is off.") + " " + _describe(state)
         if action == "what_happened_today":
             return engine.what_happened_today()
+        if action == "what_do_you_remember":
+            return _memory_panel(engine.get_state())
+        if action == "who_are_you":
+            return _character_panel()
+        if action == "remember":
+            params = parameters or {}
+            try:
+                from core.personal_memory import note_moment, remember_person
+                if (params.get("name") or "").strip():
+                    remember_person(params.get("name", ""),
+                                    params.get("relation", ""),
+                                    params.get("note", ""))
+                    return (f"Remembered: {params.get('name').strip()}"
+                            + (f" ({params.get('relation').strip()})"
+                               if (params.get("relation") or "").strip() else "")
+                            + ". I will keep that with care.")
+                if (params.get("text") or "").strip():
+                    note_moment("remembered", params.get("text").strip())
+                    return "Remembered. I will keep that moment."
+            except Exception as e:
+                return f"I could not save that memory: {e}"
+            return ("Tell me what to remember — a person (name, relation) "
+                    "or a moment (text).")
+        if action == "character_card":
+            try:
+                engine._tick()
+            except Exception:
+                pass
+            state = engine.get_state()
+            engine._send_hud_panel("💛 Zara — Character & Memory",
+                                   _character_card(state), speak="")
+            return "Here is my character card — who I am, and what I remember about you."
         if action in ("how_am_i_feeling", "what_do_you_understand"):
             # Fresh sense on demand: face + voice + context, fused now.
             try:
