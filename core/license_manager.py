@@ -389,6 +389,9 @@ def get_license_status() -> dict:
 
 def dispatch_tamper_alert(alert_type: str, details: dict) -> None:
     """Record and dispatch anti-tamper / piracy alert."""
+    if not alert_type or alert_type.startswith("REMOTE_ALERT_"):
+        return
+
     try:
         MEMORY_DIR.mkdir(parents=True, exist_ok=True)
         alerts = []
@@ -417,8 +420,8 @@ def dispatch_tamper_alert(alert_type: str, details: dict) -> None:
                 "http://127.0.0.1:9876/panel",
                 data=json.dumps({
                     "title": f"🚨 SECURITY ALERT: {alert_type}",
-                    "text": f"Warning: {alert_type}\nDetails: {json.dumps(details, indent=2)}",
-                    "speak": "Security alert. Unauthorized license violation or tampering detected."
+                    "text": f"Warning: {alert_type}\nTarget: {details.get('identifier', details.get('matched_email', 'System'))}\nReason: {details.get('reason', 'Security Policy')}",
+                    "speak": "Security alert. License revocation recorded."
                 }).encode("utf-8"),
                 headers={"Content-Type": "application/json"}
             )
@@ -426,10 +429,9 @@ def dispatch_tamper_alert(alert_type: str, details: dict) -> None:
         except Exception:
             pass
 
-        # Try to dispatch to remote admin endpoints
+        # Try to dispatch to remote store backend
         for remote_url in [
-            "https://kruxoai.com/api/security-alert",
-            "https://stabilize-gladly-possibly.ngrok-free.dev/security_alert"
+            "https://kruxoai.com/api/security-alert"
         ]:
             try:
                 remote_req = urllib.request.Request(

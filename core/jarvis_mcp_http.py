@@ -250,8 +250,38 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
                 content_length = int(self.headers.get("Content-Length", 0))
                 raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
                 payload = json.loads(raw_body)
-                from core.license_manager import dispatch_tamper_alert
-                dispatch_tamper_alert("REMOTE_ALERT_" + str(payload.get("alert_type", "UNKNOWN")), payload)
+                alerts_file = Path(BASE_DIR) / "memory" / "tamper_alerts.json"
+                alerts = []
+                if alerts_file.exists():
+                    try:
+                        alerts = json.loads(alerts_file.read_text(encoding="utf-8"))
+                    except Exception:
+                        alerts = []
+                alert_type = str(payload.get("alert_type", "REMOTE_SECURITY_ALERT"))
+                alerts.append({
+                    "timestamp": time.time(),
+                    "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+                    "alert_type": alert_type,
+                    "payload": payload
+                })
+                alerts_file.parent.mkdir(parents=True, exist_ok=True)
+                alerts_file.write_text(json.dumps(alerts[-100:], indent=2), encoding="utf-8")
+
+                # Forward single clean notification to HUD without re-dispatching to network
+                try:
+                    alert_req = urllib.request.Request(
+                        "http://127.0.0.1:9876/panel",
+                        data=json.dumps({
+                            "title": f"🚨 CLIENT ALERT: {alert_type}",
+                            "text": f"Remote Client Security Alert:\n{json.dumps(payload, indent=2)}",
+                            "speak": "Security alert recorded from remote client."
+                        }).encode("utf-8"),
+                        headers={"Content-Type": "application/json"}
+                    )
+                    urllib.request.urlopen(alert_req, timeout=1)
+                except Exception:
+                    pass
+
                 self._send_json({"ok": True, "alert_logged": True})
             except Exception as e:
                 self._send_json({"error": str(e)}, status=400)
