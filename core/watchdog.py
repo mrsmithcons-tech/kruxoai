@@ -30,7 +30,8 @@ class SystemSupervisorWatchdog:
             "bridge_9876": 0,
             "mcp_9877": 0,
             "room_sentry": 0,
-            "office_rhythm": 0
+            "office_rhythm": 0,
+            "living_awareness": 0
         }
 
     def start(self) -> bool:
@@ -106,6 +107,15 @@ class SystemSupervisorWatchdog:
                     if not office_rhythm._running:
                         office_rhythm.start()
                         self._revival_counts["office_rhythm"] += 1
+                except Exception:
+                    pass
+
+                # 5. Check Living Awareness
+                try:
+                    from core.living_awareness import living_awareness
+                    if not living_awareness._running:
+                        living_awareness.start()
+                        self._revival_counts["living_awareness"] += 1
                 except Exception:
                     pass
 

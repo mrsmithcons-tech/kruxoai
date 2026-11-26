@@ -46,6 +46,11 @@ try:
 except Exception:      # pragma: no cover — the classic core still draws
     Reactor3D = None
 
+try:
+    from gui.cyber_avatar import CyberFemaleAvatar
+except Exception:
+    CyberFemaleAvatar = None
+
 
 class HudCanvas(QWidget):
     def __init__(self, face_path: str, assistant_name: str = "J.A.R.V.I.S", parent=None):
@@ -59,8 +64,15 @@ class HudCanvas(QWidget):
         self.state    = "INITIALISING"
         self._assistant_name = assistant_name
 
-        # The holographic head that fills the HUD. If it could not be imported
-        # we fall back to the old glowing core so the panel is never empty.
+        # The photorealistic cyber-female avatar (default centerpiece)
+        self._cyber_female = None
+        if CyberFemaleAvatar is not None:
+            try:
+                self._cyber_female = CyberFemaleAvatar()
+            except Exception:
+                self._cyber_female = None
+
+        # The holographic 3D head that fills the HUD
         self._avatar = None
         if HoloAvatar is not None:
             try:
@@ -68,9 +80,7 @@ class HudCanvas(QWidget):
             except Exception:
                 self._avatar = None
 
-        # The reactor core in three dimensions (gui/reactor.py). The flat ring
-        # stack it replaced is kept whole as _paint_core_classic, and it is
-        # what draws if the model could not be built.
+        # The reactor core in three dimensions (gui/reactor.py)
         self._reactor = None
         if Reactor3D is not None:
             try:
@@ -78,14 +88,12 @@ class HudCanvas(QWidget):
             except Exception:
                 self._reactor = None
 
-        # Which centrepiece to draw. Read once here and changed live by the
-        # settings toggle; the avatar object is kept either way so switching
-        # back is instant and costs no reload.
+        # Which centrepiece to draw: "female_realistic", "face", "core"
         try:
             from memory.config_manager import get_hud_style
             self.hud_style = get_hud_style()
         except Exception:
-            self.hud_style = "face"
+            self.hud_style = "female_realistic"
         self._core_phase = 0.0
 
         self._tick       = 0
@@ -336,7 +344,10 @@ class HudCanvas(QWidget):
         # starts talking. Same lesson the head's sway taught.
         self._core_phase += min(0.10, max(0.0, dt))
 
-        if self._avatar is not None and self.hud_style == "face":
+        if self._cyber_female is not None and self.hud_style == "female_realistic":
+            self._cyber_female.step(dt, amp, speaking=self.speaking,
+                                    muted=self.muted, state=self.state)
+        elif self._avatar is not None and self.hud_style == "face":
             self._avatar.step(dt, amp, speaking=self.speaking,
                               muted=self.muted, state=self.state,
                               v_open=v_open, v_wide=v_wide or 0.0,
@@ -610,21 +621,24 @@ class HudCanvas(QWidget):
         band_t = 30.0
         band_h = max(60.0, sy - 14.0 - band_t)
 
-        if self._avatar is not None and self.hud_style == "face":
+        if self.muted:
+            main = acc = qcol(C.MUTED_C)
+        else:
+            main = qcol(C.PRI)
+            if self.speaking:
+                acc = qcol(C.ACC)
+            elif self.state in ("THINKING", "PROCESSING"):
+                acc = qcol(C.ACC2)
+            elif self.state == "LISTENING":
+                acc = qcol(C.GREEN)
+            else:
+                acc = qcol(C.PRI)
+
+        if self._cyber_female is not None and self.hud_style == "female_realistic":
+            self._cyber_female.paint(p, cx, cy - 8.0, band_h, main, acc, qcol(C.BG))
+        elif self._avatar is not None and self.hud_style == "face":
             r_head = min(fw * 0.355, band_h / (self._avatar.SPAN + 0.08))
             head_cy = band_t + (band_h - self._avatar.SPAN * r_head) / 2.0 + r_head
-            if self.muted:
-                main = acc = qcol(C.MUTED_C)
-            else:
-                main = qcol(C.PRI)
-                if self.speaking:
-                    acc = qcol(C.ACC)
-                elif self.state in ("THINKING", "PROCESSING"):
-                    acc = qcol(C.ACC2)
-                elif self.state == "LISTENING":
-                    acc = qcol(C.GREEN)
-                else:
-                    acc = qcol(C.PRI)
             self._avatar.paint(p, cx, head_cy, r_head, main, acc, qcol(C.BG))
         elif self._reactor is not None:
             ext = Reactor3D.TOP + Reactor3D.BOTTOM

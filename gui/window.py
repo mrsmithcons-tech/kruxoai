@@ -2623,24 +2623,29 @@ class MainWindow(QMainWindow):
 
     def _refresh_hud_btn(self):
         from memory.config_manager import get_hud_style
-        face = get_hud_style() == "face"
-        # Neither state is "off", so both read as active — this is a choice
-        # between two things, not a switch with a disabled side.
-        self._hud_btn.setText("🧑  HUD: ANIMATED FACE" if face
-                              else "◉  HUD: REACTOR CORE")
+        st = get_hud_style()
+        if st == "female_realistic":
+            self._hud_btn.setText("👩  HUD: REALISTIC FEMALE")
+            self._hud_btn.setToolTip("Photorealistic Cyber-Female HUD with dynamic ocular scanner and neural streams. Tap to cycle.")
+        elif st == "face":
+            self._hud_btn.setText("✨  HUD: 3D WIREFRAME")
+            self._hud_btn.setToolTip("3D Holographic female wireframe avatar. Tap to cycle.")
+        else:
+            self._hud_btn.setText("◉  HUD: REACTOR CORE")
+            self._hud_btn.setToolTip("3D Sci-Fi Arc Reactor. Tap to cycle.")
         self._hud_btn.setStyleSheet(btn_css("choice"))
-        self._hud_btn.setToolTip(
-            "An animated head that speaks your words and shows what JARVIS is "
-            "doing. Tap to switch to the reactor core."
-            if face else
-            "A 3-D reactor core that turns with the state and moves with your "
-            "voice. Tap to switch to the animated head.")
 
     def _toggle_hud_style(self):
-        """Swap the centrepiece. Both objects stay in memory, so the change is
-        instant and switching back costs nothing."""
+        """Cycle HUD centerpiece: Realistic Female -> 3D Wireframe -> Reactor Core."""
         from memory.config_manager import get_hud_style, save_hud_style
-        want = "core" if get_hud_style() == "face" else "face"
+        cur = get_hud_style()
+        if cur == "female_realistic":
+            want = "face"
+        elif cur == "face":
+            want = "core"
+        else:
+            want = "female_realistic"
+
         save_hud_style(want)
         try:
             self.hud.hud_style = want
@@ -2648,9 +2653,7 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self._refresh_hud_btn()
-        self._log.append_log(
-            "SYS: HUD switched to the animated face." if want == "face"
-            else "SYS: HUD switched to the reactor core.")
+        self._log.append_log(f"SYS: HUD centerpiece switched to {want.upper()}.")
 
     def _toggle_ptt(self):
         from memory.config_manager import (get_push_to_talk_enabled,

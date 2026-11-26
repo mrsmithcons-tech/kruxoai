@@ -73,3 +73,5 @@ memory/observed_activity.json
 memory/notes/
 memory/tasks/
 reports/
+memory/living_journal.jsonl
+memory/living_state.json
