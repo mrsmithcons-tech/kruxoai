@@ -1903,3 +1903,135 @@ class RemoteKeyOverlay(QWidget):
         self.closed.emit()
 
 
+class LicenseActivationOverlay(QWidget):
+    """
+    Mandatory Sci-Fi Activation Gate for KruxoAI Commercial Distribution.
+    Unclosable modal overlay that traps the window until an authentic
+    $20 lifetime license key from https://kruxoai.com is activated.
+    """
+    activated = pyqtSignal(dict)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"""
+            LicenseActivationOverlay {{
+                background: rgba(0, 6, 10, 252);
+                border: 2px solid {C.PRI};
+                border-radius: 8px;
+            }}
+        """)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(32, 24, 32, 24)
+        layout.setSpacing(8)
+
+        def _lbl(txt, font_size=9, bold=False, color=C.PRI, align=Qt.AlignmentFlag.AlignCenter):
+            w = QLabel(txt)
+            w.setAlignment(align)
+            w.setFont(hud_font(font_size, QFont.Weight.Bold if bold else QFont.Weight.Normal))
+            w.setStyleSheet(f"color: {color}; background: transparent;")
+            return w
+
+        layout.addWidget(_lbl("🔒  KRUXOAI ACTIVATION GATE", 14, True, color=C.PRI))
+        layout.addWidget(_lbl("Commercial Lifetime License Required ($20 USD)  ·  kruxoai.com", 9, color=C.PRI_DIM))
+        layout.addSpacing(6)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet(f"color: {C.BORDER};")
+        layout.addWidget(sep)
+        layout.addSpacing(4)
+
+        layout.addWidget(_lbl("REGISTERED PURCHASE EMAIL", 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
+        self._email_input = QLineEdit()
+        self._email_input.setPlaceholderText("buyer@example.com")
+        self._email_input.setFont(hud_font(10))
+        self._email_input.setFixedHeight(34)
+        self._email_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: #000d12; color: {C.TEXT};
+                border: 1px solid {C.BORDER}; border-radius: 4px; padding: 4px 10px;
+            }}
+            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+        """)
+        layout.addWidget(self._email_input)
+
+        layout.addWidget(_lbl("16-CHARACTER LIFETIME LICENSE KEY", 8, color=C.TEXT_DIM, align=Qt.AlignmentFlag.AlignLeft))
+        self._key_input = QLineEdit()
+        self._key_input.setPlaceholderText("KRUXO-XXXX-XXXX-XXXX-XXXX")
+        self._key_input.setFont(hud_font(10, QFont.Weight.Bold))
+        self._key_input.setFixedHeight(34)
+        self._key_input.setStyleSheet(f"""
+            QLineEdit {{
+                background: #000d12; color: {C.PRI};
+                border: 1px solid {C.BORDER}; border-radius: 4px; padding: 4px 10px;
+                letter-spacing: 2px;
+            }}
+            QLineEdit:focus {{ border: 1px solid {C.PRI}; }}
+        """)
+        layout.addWidget(self._key_input)
+
+        self._status_lbl = _lbl("", 9, color=C.RED)
+        layout.addWidget(self._status_lbl)
+        layout.addSpacing(4)
+
+        # Activate Button
+        act_btn = QPushButton("⚡  ACTIVATE LIFETIME ACCESS ($20)")
+        act_btn.setFont(hud_font(10, QFont.Weight.Bold))
+        act_btn.setFixedHeight(38)
+        act_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        act_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {C.PRI}; color: #00060a;
+                border: none; border-radius: 4px; font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background: #8ffcff;
+            }}
+        """)
+        act_btn.clicked.connect(self._do_activate)
+        layout.addWidget(act_btn)
+
+        # Buy Button
+        buy_btn = QPushButton("🛒  PURCHASE KEY ON KRUXOAI.COM")
+        buy_btn.setFont(hud_font(9, QFont.Weight.DemiBold))
+        buy_btn.setFixedHeight(32)
+        buy_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        buy_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent; color: {C.TEXT_MED};
+                border: 1px solid {C.BORDER}; border-radius: 4px;
+            }}
+            QPushButton:hover {{
+                color: {C.WHITE}; border: 1px solid {C.PRI_DIM};
+            }}
+        """)
+        buy_btn.clicked.connect(self._open_store)
+        layout.addWidget(buy_btn)
+
+    def _open_store(self):
+        import webbrowser
+        webbrowser.open("https://kruxoai.com")
+
+    def _do_activate(self):
+        email = self._email_input.text().strip()
+        key = self._key_input.text().strip().upper()
+        if not email or not key:
+            self._status_lbl.setText("Please enter both your purchase email and license key.")
+            self._status_lbl.setStyleSheet(f"color: {C.RED}; background: transparent;")
+            return
+
+        from core.license_manager import activate_license
+        res = activate_license(email, key)
+        if res.get("ok"):
+            self._status_lbl.setText("✅ Verified! Welcome to KruxoAI.")
+            self._status_lbl.setStyleSheet(f"color: {C.GREEN}; background: transparent;")
+            record = res.get("record", {})
+            QTimer.singleShot(600, lambda: self.activated.emit(record))
+        else:
+            self._status_lbl.setText(res.get("error", "Invalid license key."))
+            self._status_lbl.setStyleSheet(f"color: {C.RED}; background: transparent;")
+
+
+

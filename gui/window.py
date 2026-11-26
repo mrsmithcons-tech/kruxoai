@@ -81,6 +81,7 @@ from gui.overlays import (
     PluginSettingsOverlay,
     RemoteKeyOverlay,
     SetupOverlay,
+    LicenseActivationOverlay,
 )
 from gui.providers_panel import (
     ProvidersOverlay,
@@ -431,9 +432,17 @@ class MainWindow(QMainWindow):
         QApplication.clipboard().dataChanged.connect(self._on_clipboard_changed)
 
         self._overlay: SetupOverlay | None = None
-        self._ready = self._check_config()
-        if not self._ready:
-            self._show_setup()
+        self._license_overlay: LicenseActivationOverlay | None = None
+
+        # ── Mandatory Commercial License Gate ─────────────────────────────────
+        self._license_ready = self._check_license()
+        if not self._license_ready:
+            self._ready = False
+            self._show_license_gate()
+        else:
+            self._ready = self._check_config()
+            if not self._ready:
+                self._show_setup()
 
         sc_mute = QShortcut(QKeySequence("F4"), self)
         sc_mute.activated.connect(self._toggle_mute)
@@ -1158,6 +1167,13 @@ class MainWindow(QMainWindow):
         super().resizeEvent(event)
         self._fit_side_columns()
         cw = self.centralWidget()
+        if hasattr(self, "_license_overlay") and self._license_overlay and self._license_overlay.isVisible():
+            ow, oh = 480, 400
+            self._license_overlay.setGeometry(
+                (cw.width()  - ow) // 2,
+                (cw.height() - oh) // 2,
+                ow, oh,
+            )
         if self._overlay and self._overlay.isVisible():
             ow, oh = 460, 390
             self._overlay.setGeometry(
@@ -2975,6 +2991,48 @@ class MainWindow(QMainWindow):
         self.hud.speaking = (state == "SPEAKING")
         if hasattr(self, "_state_chip"):
             self._state_chip.set_state(state)
+
+    def _check_license(self) -> bool:
+        """Verify commercial lifetime license status."""
+        try:
+            from core.license_manager import get_license_status
+            status = get_license_status()
+            return bool(status.get("activated"))
+        except Exception:
+            return False
+
+    def _show_license_gate(self):
+        """Display mandatory Sci-Fi activation gate overlay."""
+        ov = LicenseActivationOverlay(self.centralWidget())
+        cw = self.centralWidget()
+        ow, oh = 480, 400
+        ov.setGeometry(
+            (cw.width()  - ow) // 2,
+            (cw.height() - oh) // 2,
+            ow, oh,
+        )
+        ov.activated.connect(self._on_license_activated)
+        ov.show()
+        self._license_overlay = ov
+
+    def _on_license_activated(self, record: dict):
+        """Slot — license successfully validated and activated."""
+        self._license_ready = True
+        if self._license_overlay:
+            self._license_overlay.hide()
+            self._license_overlay = None
+
+        self._ready = self._check_config()
+        if not self._ready:
+            self._show_setup()
+        else:
+            self._apply_state("LISTENING")
+            email = record.get("email", "buyer")
+            self._log.append_log(f"SYS: KruxoAI Lifetime License verified for {email}.")
+            try:
+                self.request_say("Lifetime license verified. Welcome to KruxoAI.")
+            except Exception:
+                pass
 
     def _check_config(self) -> bool:
         d = _read_full_config()

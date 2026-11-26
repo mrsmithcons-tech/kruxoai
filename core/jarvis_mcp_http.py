@@ -203,6 +203,18 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
                 }
             })
         elif method in ("tools/call", "mcp/call"):
+            from core.license_manager import get_license_status
+            if not get_license_status().get("activated"):
+                self._send_json({
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {
+                        "code": -32001,
+                        "message": "KruxoAI commercial license activation required. Purchase lifetime access at https://kruxoai.com ($20)."
+                    }
+                }, status=403)
+                return
+
             tool_name = params.get("name")
             tool_args = params.get("arguments", {})
             try:

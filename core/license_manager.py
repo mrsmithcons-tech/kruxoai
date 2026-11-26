@@ -335,21 +335,32 @@ def check_remote_ban(email: str, key: str) -> tuple[bool, str]:
 
 
 def get_license_status() -> dict:
-    """Read local license status. Checks for bans and returns activation details."""
+    """Read local license status. Checks for bans, signatures, and returns activation details."""
     if not LICENSE_FILE.exists():
         return {
-            "activated": True,
-            "tier": "Owner / Developer Edition",
-            "plan": "KruxoAI Commercial Standard",
-            "domain": "kruxoai.com",
-            "official_website": "https://kruxoai.com"
+            "activated": False,
+            "status": "UNLICENSED",
+            "plan": "Unlicensed",
+            "error": "Activation required. Purchase lifetime access at https://kruxoai.com ($20).",
+            "purchase_url": "https://kruxoai.com",
+            "price": "$20 USD"
         }
     try:
         data = json.loads(LICENSE_FILE.read_text(encoding="utf-8"))
         email = data.get("email", "")
         key = data.get("license_key", "")
 
-        # Check local and remote ban status
+        # 1. Cryptographic signature and authenticity verification
+        if not email or not key or not verify_license_key(email, key):
+            return {
+                "activated": False,
+                "status": "INVALID_SIGNATURE",
+                "plan": "Unlicensed",
+                "error": "Tampered or invalid license key signature.",
+                "purchase_url": "https://kruxoai.com"
+            }
+
+        # 2. Check local and remote ban status
         banned, reason = is_banned(email)
         if not banned:
             banned, reason = is_banned(key)
