@@ -188,18 +188,18 @@ def save_push_to_talk_enabled(enabled: bool) -> None:
     _save_flag("push_to_talk_enabled", enabled)
 
 
-HUD_STYLES = ("female_realistic", "face", "core")
+HUD_STYLES = ("face", "core")
 
 
 def get_hud_style() -> str:
-    """Which centrepiece the HUD draws: realistic cyber female, 3D wireframe head, or reactor core."""
-    v = str(load_api_keys().get("hud_style", "female_realistic")).strip().lower()
-    return v if v in HUD_STYLES else "female_realistic"
+    """Which centrepiece the HUD draws: the animated 3D head, or the reactor core."""
+    v = str(load_api_keys().get("hud_style", "face")).strip().lower()
+    return v if v in HUD_STYLES else "face"
 
 
 def save_hud_style(style: str) -> None:
     s = str(style or "").strip().lower()
-    _save_flag("hud_style", s if s in HUD_STYLES else "female_realistic")
+    _save_flag("hud_style", s if s in HUD_STYLES else "face")
 
 
 def get_ui_scale() -> float:
