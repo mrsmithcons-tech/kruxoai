@@ -50,7 +50,7 @@ def run(parameters: dict, player=None, session_memory=None) -> str:
             f"- **Face Presence**: {'Active (In Front of PC)' if face.get('present') else 'User Away'}\n"
             f"- **Enrolled Voice Profiles**: `{enrolled_names}`\n"
             f"- **Two-Factor Mode**: `Face + Voice 2FA Active`\n"
-            f"- **Security Standard**: `Biometric Fusion Mark LVII`"
+            f"- **Security Standard**: `Biometric Fusion KruxoAI v2.0`"
         )
         if player and hasattr(player, "show_content"):
             player.show_content("Biometric 2FA Status", card)

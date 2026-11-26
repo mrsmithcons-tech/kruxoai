@@ -17,6 +17,8 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
+from pathlib import Path
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from socketserver import ThreadingMixIn
 from typing import Optional
@@ -29,6 +31,88 @@ from core.jarvis_mcp import TOOLS_SCHEMA, _handle_tool_call
 
 DEFAULT_PORT = 9877
 AUTH_TOKEN = os.environ.get("JARVIS_MCP_TOKEN", "")
+
+
+def _handle_incoming_license_request(email: str, name: str, payment_ref: str, auto_approve: bool = True) -> dict:
+    """Process incoming remote license requests from kruxoai.com or client activations.
+
+    Generates HMAC-signed $20 lifetime license keys, registers them in the DRM database,
+    and alerts Faisal immediately on his desktop HUD with spoken audio.
+    """
+    from core.license_manager import register_buyer
+    clean_email = email.strip().lower()
+    if not clean_email or "@" not in clean_email:
+        return {"ok": False, "error": "Invalid email address format."}
+    buyer_name = name.strip() or clean_email.split("@")[0].title()
+    time_str = time.strftime("%Y-%m-%d %I:%M %p")
+    REQUESTS_FILE = Path(BASE_DIR) / "memory" / "license_requests.json"
+    requests_list = []
+    if REQUESTS_FILE.exists():
+        try:
+            requests_list = json.loads(REQUESTS_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    key = ""
+    status = "PENDING"
+    if auto_approve:
+        res = register_buyer(clean_email, buyer_name, notes=f"Auto-approved ({payment_ref})")
+        if res.get("ok"):
+            key = res["buyer"]["license_key"]
+            status = "APPROVED"
+        else:
+            key = res.get("buyer", {}).get("license_key", "")
+            status = "EXISTING" if key else "FAILED"
+    req_entry = {
+        "timestamp": time.time(),
+        "time_str": time_str,
+        "email": clean_email,
+        "name": buyer_name,
+        "payment_ref": payment_ref,
+        "status": status,
+        "license_key": key
+    }
+    requests_list.append(req_entry)
+    try:
+        REQUESTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        REQUESTS_FILE.write_text(json.dumps(requests_list[-100:], indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+    # Post real-time alert to Faisal's desktop HUD via Qt bridge (port 9876)
+    try:
+        spoken = (
+            f"Faisal, a new license activation request has arrived from {buyer_name}. Lifetime key {key} has been generated."
+            if auto_approve and key else
+            f"Faisal, a new license activation request has arrived from {buyer_name}."
+        )
+        card = (
+            f"### 🔔 License Activation Request\n\n"
+            f"- **Buyer:** `{buyer_name}` (`{clean_email}`)\n"
+            f"- **Payment Reference:** `{payment_ref}`\n"
+            f"- **Status:** `{'✅ ' + status if auto_approve else '⏳ PENDING'}`\n"
+            f"- **Generated Key:** `{key}`\n"
+            f"- **Time:** `{time_str}`\n\n"
+            f"License registered in your commercial buyer database."
+        )
+        alert_req = urllib.request.Request(
+            "http://127.0.0.1:9876/panel",
+            data=json.dumps({"title": f"🔔 LICENSE REQUEST: {buyer_name}", "text": card, "speak": spoken}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        urllib.request.urlopen(alert_req, timeout=1.5)
+    except Exception:
+        pass
+
+    return {
+        "ok": True,
+        "status": status,
+        "email": clean_email,
+        "name": buyer_name,
+        "license_key": key,
+        "plan": "KruxoAI Lifetime Access ($20)",
+        "domain": "kruxoai.com"
+    }
+
 
 # ── Multi-Threaded HTTP Server ───────────────────────────────────────────────
 
@@ -132,11 +216,35 @@ class MCPHTTPHandler(BaseHTTPRequestHandler):
                 self._send_json({"valid": valid, "banned": banned, "reason": reason if banned else ""})
             except Exception as e:
                 self._send_json({"error": str(e)}, status=500)
+        elif clean_path in ("/request_license", "/license_request"):
+            from urllib.parse import parse_qs, urlparse
+            query = parse_qs(urlparse(self.path).query)
+            email = query.get("email", [""])[0]
+            name = query.get("name", [""])[0]
+            payment_ref = query.get("payment_ref", ["kruxoai.com checkout"])[0]
+            auto_approve = query.get("auto", ["true"])[0].lower() in ("true", "1", "yes")
+            res = _handle_incoming_license_request(email, name, payment_ref, auto_approve=auto_approve)
+            self._send_json(res, status=200 if res.get("ok") else 400)
         else:
-            self._send_json({"error": "Not Found", "available_paths": ["/mcp", "/tools", "/health", "/sse", "/license_check"]}, status=404)
+            self._send_json({"error": "Not Found", "available_paths": ["/mcp", "/tools", "/health", "/sse", "/license_check", "/request_license"]}, status=404)
 
     def do_POST(self):
         clean_path = self.path.split("?")[0].rstrip("/")
+        if clean_path in ("/request_license", "/license_request"):
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+                raw_body = self.rfile.read(content_length).decode("utf-8") if content_length > 0 else "{}"
+                payload = json.loads(raw_body)
+                email = payload.get("email", "")
+                name = payload.get("name", "")
+                payment_ref = payload.get("payment_ref", "kruxoai.com checkout")
+                auto_approve = payload.get("auto_approve", True)
+                res = _handle_incoming_license_request(email, name, payment_ref, auto_approve=auto_approve)
+                self._send_json(res, status=200 if res.get("ok") else 400)
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
+            return
+
         if clean_path == "/security_alert":
             try:
                 content_length = int(self.headers.get("Content-Length", 0))

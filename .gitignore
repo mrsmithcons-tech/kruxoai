@@ -60,6 +60,7 @@ KruxoAI.exe
 providers/voices/*.onnx
 config/license.json
 config/buyers_registry.json
+memory/license_requests.json
 memory/tamper_alerts.json
 config/antigravity_inbox.json
 memory/biometric_2fa_audit.json

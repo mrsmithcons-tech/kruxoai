@@ -85,7 +85,7 @@ def _read_full_config() -> dict:
 
 # Single source of truth for the release name — the window title, the header
 # badge and the readme must never disagree again.
-APP_VERSION  = "Built by kruxoai.com"
+APP_VERSION  = "kruxoai.com — Built by Kruxoai.com"
 APP_PROTOCOL = "KRUXOAI"
 
 _DEFAULT_W, _DEFAULT_H = 980, 700

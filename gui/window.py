@@ -134,10 +134,7 @@ class MainWindow(QMainWindow):
         if _ui_color and _ui_color.lower() != DEFAULT_UI_COLOR:
             apply_ui_accent(_ui_color)
 
-        if "kruxo" in _display.lower():
-            self.setWindowTitle(f"{_display} — Built by kruxoai.com")
-        else:
-            self.setWindowTitle(f"{_display} — {APP_VERSION}")
+        self.setWindowTitle(f"{_display} — kruxoai.com — Built by Kruxoai.com")
         self.setMinimumSize(_MIN_W, _MIN_H)
         self.resize(_DEFAULT_W, _DEFAULT_H)
 
@@ -1269,10 +1266,7 @@ class MainWindow(QMainWindow):
         self._title_lbl.setStyleSheet(f"color: {C.WHITE}; background: transparent;")
         self._title_lbl.setToolTip(self._subtitle(display))
         name_col.addWidget(self._title_lbl)
-        if "kruxo" in display.lower():
-            self._sub_lbl = QLabel("kruxoai.com  ·  BUILT BY KRUXOAI.COM  ·  AUTONOMOUS SCI-FI AI")
-        else:
-            self._sub_lbl = QLabel(f"{APP_VERSION}  ·  PERSONAL AI SYSTEM")
+        self._sub_lbl = QLabel("kruxoai.com  ·  BUILT BY KRUXOAI.COM  ·  AUTONOMOUS SCI-FI AI")
         self._sub_lbl.setFont(px_font(9, QFont.Weight.DemiBold, spacing=2.2))
         self._sub_lbl.setStyleSheet(f"color: {C.PRI_DIM}; background: transparent;")
         name_col.addWidget(self._sub_lbl)
@@ -1325,10 +1319,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _subtitle(display: str) -> str:
-        if "kruxo" in display.lower():
-            return "Autonomous Sci-Fi AI Desktop Companion — Built by kruxoai.com"
-        return ("Just A Rather Very Intelligent System"
-                if display.replace(".", "") == "JARVIS" else "Personal AI Assistant")
+        return f"{display} — Autonomous Sci-Fi AI Desktop System — Built by kruxoai.com"
 
     def _apply_branding(self, title: str, subtitle: str) -> None:
         """Slot — thread-safe dynamic rebranding."""
@@ -1708,6 +1699,7 @@ class MainWindow(QMainWindow):
         # was being drawn as an underscore — "ENGINE _PROVIDERS".
         _btn("🔌  ENGINE && PROVIDERS", self._open_providers)
         _btn("🛡  LICENSE && ACTIVATION", self._show_license_info)
+        _btn("👥  BUYERS && DRM MANAGER", self._show_buyers_manager)
 
         w.adjustSize()
         return w
@@ -1734,6 +1726,54 @@ class MainWindow(QMainWindow):
             self._write_log("Displayed KruxoAI commercial license certificate.")
         except Exception as e:
             self._show_content("🛡️ License Error", f"Unable to read license record: {e}")
+
+    def _show_buyers_manager(self):
+        """Display commercial buyer registry, sales revenue, and incoming requests on HUD."""
+        try:
+            from core.license_manager import list_buyers
+            buyers = list_buyers()
+            active_count = sum(1 for b in buyers if b.get("status") == "ACTIVE")
+            banned_count = sum(1 for b in buyers if b.get("status") == "BANNED")
+            revenue = active_count * 20
+
+            lines = [
+                f"# 👥 KruxoAI Commercial Buyers Registry",
+                f"**Total Revenue:** `${revenue} USD`  |  **Active Licenses:** `{active_count}`  |  **Revoked/Banned:** `{banned_count}`",
+                f"**Official Platform:** [https://kruxoai.com](https://kruxoai.com) ($20 Lifetime Access)",
+                f"",
+                f"---",
+                f"",
+                f"| # | Name | Email | Status | License Key | Date |",
+                f"|---|---|---|---|---|---|",
+            ]
+            for i, b in enumerate(buyers, 1):
+                st = "✅ Active" if b.get("status") == "ACTIVE" else "🚫 Banned"
+                lines.append(f"| {i} | {b.get('name', 'Buyer')} | `{b.get('email')}` | {st} | `{b.get('license_key')}` | {b.get('created_at', '')[:10]} |")
+
+            # Check recent incoming requests
+            req_file = BASE_DIR / "memory" / "license_requests.json"
+            if req_file.exists():
+                try:
+                    reqs = json.loads(req_file.read_text(encoding="utf-8"))
+                    if reqs:
+                        lines.append("")
+                        lines.append("### 🔔 Recent Incoming Activation Requests")
+                        lines.append("| Time | Buyer | Email | Status | License Key |")
+                        lines.append("|---|---|---|---|---|")
+                        for r in reqs[-6:]:
+                            lines.append(f"| {r.get('time_str', '')} | {r.get('name')} | `{r.get('email')}` | `{r.get('status')}` | `{r.get('license_key', '-')}` |")
+                except Exception:
+                    pass
+
+            lines.append("")
+            lines.append("---")
+            lines.append("*To issue a new license or ban a user, speak aloud: 'generate license for [email]' or 'ban user [email]'.*")
+
+            content_md = "\n".join(lines)
+            self._show_content("👥 Commercial Buyers & Revenue", content_md)
+            self._write_log(f"Opened Buyers & DRM Manager ({len(buyers)} buyers, ${revenue} revenue).")
+        except Exception as e:
+            self._show_content("👥 Buyers Manager Error", f"Failed to load buyers registry: {e}")
 
     def _build_controls_drawer(self) -> QWidget:
         """The switches that get flicked every day, in their own panel."""
@@ -2746,14 +2786,9 @@ class MainWindow(QMainWindow):
         """Update all name/theme-dependent UI elements and persist to config."""
         self._assistant_name = name.strip() or "JARVIS"
         display = self._assistant_name.upper()
-        if "kruxo" in display.lower():
-            self.setWindowTitle(f"{display} — Built by kruxoai.com")
-            if hasattr(self, "_sub_lbl"):
-                self._sub_lbl.setText("kruxoai.com  ·  BUILT BY KRUXOAI.COM  ·  AUTONOMOUS SCI-FI AI")
-        else:
-            self.setWindowTitle(f"{display} — {APP_VERSION}")
-            if hasattr(self, "_sub_lbl"):
-                self._sub_lbl.setText(f"{APP_VERSION}  ·  PERSONAL AI SYSTEM")
+        self.setWindowTitle(f"{display} — kruxoai.com — Built by Kruxoai.com")
+        if hasattr(self, "_sub_lbl"):
+            self._sub_lbl.setText("kruxoai.com  ·  BUILT BY KRUXOAI.COM  ·  AUTONOMOUS SCI-FI AI")
         self._title_lbl.setText(display)
         self._title_lbl.setToolTip(self._subtitle(display))
         self._log._ai_name_lc = self._assistant_name.lower()
