@@ -49,6 +49,7 @@ desktop.ini
 *.txt
 run_output.txt
 logs/
+backups/
 downloads/
 screenshots/
 *.bak

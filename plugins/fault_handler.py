@@ -33,7 +33,9 @@ PLUGIN = {
     },
 }
 
-_FAULT_LOG = Path(__file__).resolve().parent.parent / "fault.log"
+_LOGS_DIR = Path(__file__).resolve().parent.parent / "logs"
+_LOGS_DIR.mkdir(parents=True, exist_ok=True)
+_FAULT_LOG = _LOGS_DIR / "fault.log"
 _fault_file = None
 _enabled = False
 
