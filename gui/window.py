@@ -1700,6 +1700,7 @@ class MainWindow(QMainWindow):
         _btn("🔌  ENGINE && PROVIDERS", self._open_providers)
         _btn("🛡  LICENSE && ACTIVATION", self._show_license_info)
         _btn("👥  BUYERS && DRM MANAGER", self._show_buyers_manager)
+        _btn("🔄  RESTART KRUXOAI", self._restart_kruxoai)
 
         w.adjustSize()
         return w
@@ -1774,6 +1775,13 @@ class MainWindow(QMainWindow):
             self._write_log(f"Opened Buyers & DRM Manager ({len(buyers)} buyers, ${revenue} revenue).")
         except Exception as e:
             self._show_content("👥 Buyers Manager Error", f"Failed to load buyers registry: {e}")
+
+    def _restart_kruxoai(self):
+        """Cleanly restart the KruxoAI desktop process."""
+        import subprocess, sys
+        self._write_log("SYS: Restarting KruxoAI...")
+        subprocess.Popen([sys.executable, "main.py"], cwd=str(BASE_DIR))
+        QApplication.quit()
 
     def _build_controls_drawer(self) -> QWidget:
         """The switches that get flicked every day, in their own panel."""
