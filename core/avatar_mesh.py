@@ -187,8 +187,8 @@ def _add_neck(verts: np.ndarray, faces: np.ndarray):
     ys = np.linspace(-5.5, -13.0, _NECK_RINGS)
     d = (ys + 5.5) / -7.5
 
-    rx = 4.6 * (1.0 + 0.52 * d ** 1.9)
-    rz = 4.1 * (1.0 + 0.38 * d ** 1.9)
+    rx = 3.8 * (1.0 + 0.45 * d ** 1.9)
+    rz = 3.4 * (1.0 + 0.35 * d ** 1.9)
     nx = rx[:, None] * np.cos(ph)[None, :]
     nz = _NECK_Z + rz[:, None] * np.sin(ph)[None, :]
     ny = ys[:, None] * np.ones_like(ph)[None, :]
@@ -260,9 +260,53 @@ def _check_landmarks(verts: np.ndarray) -> None:
     assert abs(lips[0]) < 0.5, "lips are not centred"
 
 
+def _feminize_mesh(v: np.ndarray) -> np.ndarray:
+    """Morph canonical geometry into delicate, realistic feminine facial proportions.
+
+    Transforms the jaw into an elegant V-line contour, refines the chin, sculpts
+    high cheekbones, slims the nasal bridge and tip, lifts eye corners, and arches the brows.
+    """
+    verts = v.copy()
+
+    # 1. Slender V-Line Jaw & Narrower Rounded Chin
+    # Model Y: chin ≈ -9.4, mouth ≈ -4.3, forehead ≈ +8.2
+    chin_w = np.clip((-2.2 - verts[:, 1]) / 7.2, 0.0, 1.0) ** 1.3
+    verts[:, 0] *= (1.0 - 0.22 * chin_w)
+
+    # Delicate forward chin projection
+    chin_tip = np.exp(-((verts[:, 1] + 8.5) / 1.8) ** 2) * np.exp(-(verts[:, 0] / 2.2) ** 2)
+    verts[:, 2] += 0.35 * chin_tip
+
+    # 2. High Sculpted Cheekbones (Zygomatic elevation)
+    cheek = np.exp(-((verts[:, 1] - 1.5) / 1.8) ** 2) * np.exp(-((np.abs(verts[:, 0]) - 4.2) / 1.6) ** 2) * np.clip(verts[:, 2] / 3.0, 0.0, 1.0)
+    verts[:, 2] += 0.45 * cheek
+    verts[:, 1] += 0.20 * cheek
+
+    # 3. Refined Slim Nose Bridge & Feminine Tip
+    nose = np.exp(-((verts[:, 1] + 1.0) / 2.5) ** 2) * np.exp(-(verts[:, 0] / 1.5) ** 2) * np.clip(verts[:, 2] / 4.0, 0.0, 1.0)
+    verts[:, 0] *= (1.0 - 0.16 * nose)
+
+    # 4. Sculpted Fuller Lips (lower lip pout & definition)
+    lip_lower = [17, 18, 14, 87, 317, 402, 318, 88, 178]
+    for idx in lip_lower:
+        if idx < len(verts):
+            verts[idx, 1] -= 0.22
+            verts[idx, 2] += 0.32
+
+    # 5. Arched Feminine Eyebrow Apex
+    for brow_key in ("brow_l", "brow_r"):
+        for i, idx in enumerate(LANDMARKS[brow_key]):
+            if idx < len(verts):
+                arch = 0.42 if i in (1, 2) else 0.18
+                verts[idx, 1] += arch
+
+    return verts
+
+
 def build_head() -> dict:
     """Assemble the full head. Called once; `get_head_mesh()` caches the result."""
     verts, faces = _load_obj(_OBJ)
+    verts = _feminize_mesh(verts)
     _check_landmarks(verts)
 
     n_face = len(verts)

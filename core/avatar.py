@@ -30,7 +30,7 @@ import random
 
 import numpy as np
 from PyQt6.QtCore import QLineF, QPointF, QRectF, Qt
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF, QRadialGradient
+from PyQt6.QtGui import QBrush, QColor, QPainter, QPainterPath, QPen, QPolygonF, QRadialGradient
 
 from core.avatar_mesh import JAW_MAX, JAW_PIVOT, get_head_mesh
 
@@ -509,6 +509,7 @@ class HoloAvatar:
         if self.shaded:
             self._paint_surface(p, xs, ys, norms, verts, primary, bg, amp)
         self._paint_wire(p, xs, ys, norms, verts, primary, bg, amp)
+        self._paint_feminine_silhouette(p, xs, ys, r, primary, accent, bg, amp)
         self._paint_features(p, xs, ys, norms, r, primary, accent, bg, amp)
 
     def _paint_surface(self, p: QPainter, xs, ys, norms, verts,
@@ -542,14 +543,13 @@ class HoloAvatar:
         bx, by = xs[b][vis], ys[b][vis]
         cxx, cyy = xs[c][vis], ys[c][vis]
 
-        # A rim term for the glass edge plus a key light high on the left. The
-        # light leans off-axis on purpose: weight it towards the camera and
-        # every front-facing facet returns the same value, which is a flat mask.
-        fres = np.clip(1.0 - nz, 0.0, 2.0) ** 1.7
-        lam = np.clip(fn[:, 0] * -0.55 + fn[:, 1] * 0.50 + nz * 0.52, 0.0, 1.0)
-        bright = 0.26 + 0.20 * fres + 0.66 * lam ** 1.05
+        # Soft radiant lighting: rim term for luminous holographic contour
+        # plus a key light highlighting cheekbone and forehead anatomy.
+        fres = np.clip(1.0 - nz, 0.0, 2.0) ** 1.5
+        lam = np.clip(fn[:, 0] * -0.50 + fn[:, 1] * 0.55 + nz * 0.48, 0.0, 1.0)
+        bright = 0.28 + 0.24 * fres + 0.62 * lam ** 1.15
         bright *= (self._fade[a][vis] + self._fade[b][vis] + self._fade[c][vis]) / 3.0
-        bright *= 0.88 + 0.24 * amp
+        bright *= 0.90 + 0.25 * amp
 
         idx = np.clip((bright * _LUT_N).astype(np.int32), 0, _LUT_N - 1)
 
@@ -627,6 +627,58 @@ class HoloAvatar:
 
     # ── face ────────────────────────────────────────────────────────────────
 
+    def _paint_feminine_silhouette(self, p: QPainter, xs, ys, r: float,
+                                   primary: QColor, accent: QColor, bg: QColor,
+                                   amp: float) -> None:
+        """Render elegant holographic hair locks and feminine contour tresses."""
+        face = max(0.0, math.cos(self._yaw) * math.cos(self._pitch))
+        if face < 0.05:
+            return
+        yaw = self._yaw
+        sway = self._sway
+        mx = float(xs.mean())
+        my = float(ys.mean())
+
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+        # Delicate glowing cyber-tresses framing each side of the face
+        for side in (-1.0, 1.0):
+            if side * yaw < -0.55:
+                continue
+
+            # 4 flowing layered hair strands per side
+            for layer in range(4):
+                alpha = int((140 - layer * 22) * face * (0.85 + 0.15 * math.sin(sway * 1.5 + side + layer)))
+                pen = QPen(_c(primary, max(20, alpha)), 1.3 - layer * 0.15, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
+                p.setPen(pen)
+
+                strand = QPainterPath()
+                # Start anchored close to temple / forehead border
+                top_x = mx + side * (r * (0.44 + layer * 0.07)) - yaw * r * 0.16
+                top_y = my - r * (0.68 - layer * 0.06) + self._pitch * r * 0.10
+
+                # Mid-cheek contour flowing alongside the jawline
+                mid_x = mx + side * (r * (0.58 + layer * 0.08)) + math.sin(sway * 0.8 + layer) * 3.0
+                mid_y = my + r * (0.15 + layer * 0.10)
+
+                # Lower neck tress tip
+                end_x = mx + side * (r * (0.34 + layer * 0.07)) + math.sin(sway * 1.2 + layer) * 4.0
+                end_y = my + r * (0.88 + layer * 0.12)
+
+                strand.moveTo(top_x, top_y)
+                strand.cubicTo(
+                    top_x + side * r * 0.14, (top_y + mid_y) * 0.5,
+                    mid_x + side * r * 0.08, (mid_y + end_y) * 0.5,
+                    end_x, end_y
+                )
+                p.drawPath(strand)
+
+        # Subtle radiant holographic crown halo
+        halo_rect = QRectF(mx - r * 0.65, my - r * 1.02, r * 1.30, r * 0.32)
+        halo_pen = QPen(_c(accent, int(65 + 45 * amp)), 1.2)
+        p.setPen(halo_pen)
+        p.drawArc(halo_rect, 20 * 16, 140 * 16)
+
     def _ring(self, xs, ys, idx) -> QPolygonF:
         return QPolygonF([QPointF(float(x), float(y))
                           for x, y in zip(xs[idx], ys[idx])])
@@ -634,12 +686,7 @@ class HoloAvatar:
     def _paint_features(self, p: QPainter, xs, ys, norms, r: float,
                         primary: QColor, accent: QColor, bg: QColor,
                         amp: float) -> None:
-        """Eyes, brows and the mouth cavity, drawn from the real landmark rings.
-
-        The canonical model's eyes and lips are closed skin — the geometry gives
-        the *shape* of the lids and mouth but no opening, so the openings are
-        painted here, exactly on the landmarks that bound them.
-        """
+        """Eyes, eyelashes, brows and mouth, sculpted for realistic feminine expression."""
         face = max(0.0, math.cos(self._yaw) * math.cos(self._pitch)) ** 2
         if face < 0.02:
             return
@@ -647,7 +694,7 @@ class HoloAvatar:
         lm = self._lm
         vis = 1.0 - self._blink
 
-        # ── eyes ────────────────────────────────────────────────────────────
+        # ── eyes & delicate eyelashes ─────────────────────────────────────────
         for key in ("eye_l", "eye_r"):
             idx = lm[key]
             ex, ey = xs[idx], ys[idx]
@@ -657,45 +704,83 @@ class HoloAvatar:
             poly = QPolygonF([QPointF(float(a), float(b)) for a, b in zip(ex, ey)])
 
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QBrush(_blend(bg, primary, 22)))       # socket shadow
-            p.drawPolygon(poly)
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            p.setPen(QPen(_c(primary, 210 * face), 1.3))      # lid line
+            p.setBrush(QBrush(_blend(bg, primary, 28)))       # eye socket shadow
             p.drawPolygon(poly)
 
+            # Elegant feminine eyeliner sweep
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(_c(primary, 230 * face), 1.5))      # lid line
+            p.drawPolygon(poly)
+
+            br = poly.boundingRect()
+            is_left = (key == "eye_l")
+
+            # Delicate realistic eyelashes along the upper lid
+            if vis > 0.45:
+                p.setPen(QPen(_c(primary, 185 * face * vis), 1.1))
+                pts = [poly.at(k) for k in range(poly.size())]
+                upper_pts = [pt for pt in pts if pt.y() <= mid_y + 1.2]
+                if len(upper_pts) >= 4:
+                    for u_pt in upper_pts[::2]:
+                        rel_x = (u_pt.x() - br.center().x()) / max(1.0, br.width() * 0.5)
+                        dx = (-2.5 if is_left else 2.5) * (1.1 + 0.4 * abs(rel_x))
+                        dy = -3.8 - abs(rel_x) * 1.5
+                        p.drawLine(u_pt, QPointF(u_pt.x() + dx, u_pt.y() + dy))
+
+                # Winged cat-eye flick on the outer corner
+                outer_idx = 0 if is_left else 8
+                if outer_idx < len(pts):
+                    opt = pts[outer_idx]
+                    wing_dx = -5.5 if is_left else 5.5
+                    wing_dy = -2.8
+                    p.drawLine(opt, QPointF(opt.x() + wing_dx, opt.y() + wing_dy))
+
             if vis > 0.35:
-                br = poly.boundingRect()
                 gx = br.center().x() + self._gaze[0] * br.width() * 0.16
                 gy = br.center().y() + self._gaze[1] * br.height() * 0.20
                 cpt = QPointF(gx, gy)
                 rad = min(br.height() * 0.62, br.width() * 0.20)
+
+                # Multi-depth luminous Iris
                 p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QBrush(_c(accent, (70 + 60 * amp) * face * vis)))
-                p.drawEllipse(cpt, rad, rad * vis)            # iris
-                p.setBrush(QBrush(_c(accent, 245 * face * vis)))
-                p.drawEllipse(cpt, rad * 0.42, rad * 0.42 * vis)   # pupil
+                p.setBrush(QBrush(_c(accent, (80 + 60 * amp) * face * vis)))
+                p.drawEllipse(cpt, rad, rad * vis)            # outer iris
+
+                p.setBrush(QBrush(_c(primary, (130 + 70 * amp) * face * vis)))
+                p.drawEllipse(cpt, rad * 0.72, rad * 0.72 * vis) # inner iris ring
+
+                # Pupil
+                p.setBrush(QBrush(_blend(bg, accent, 245 * face * vis)))
+                p.drawEllipse(cpt, rad * 0.40, rad * 0.40 * vis)   # pupil
+
+                # Realistic Specular Catchlights (vital for realistic, expressive eyes!)
+                gleam1 = QPointF(cpt.x() - rad * 0.26, cpt.y() - rad * 0.26 * vis)
+                p.setBrush(QBrush(QColor(255, 255, 255, int(235 * face * vis))))
+                p.drawEllipse(gleam1, rad * 0.22, rad * 0.22 * vis)
+
+                gleam2 = QPointF(cpt.x() + rad * 0.20, cpt.y() + rad * 0.18 * vis)
+                p.setBrush(QBrush(QColor(255, 255, 255, int(150 * face * vis))))
+                p.drawEllipse(gleam2, rad * 0.11, rad * 0.11 * vis)
 
         # ── brows ───────────────────────────────────────────────────────────
+        # High arched, sculpted feminine eyebrows
         p.setBrush(Qt.BrushStyle.NoBrush)
-        p.setPen(QPen(_c(primary, 150 * face), 1.7))
+        p.setPen(QPen(_c(primary, 195 * face), 1.9, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         for key in ("brow_l", "brow_r"):
             idx = lm[key]
             p.drawPolyline(self._ring(xs, ys, idx))
 
         # ── mouth ───────────────────────────────────────────────────────────
         inner = self._ring(xs, ys, lm["lips_in"])
+        outer = self._ring(xs, ys, lm["lips_out"])
         open_h = inner.boundingRect().height()
 
         p.setPen(Qt.PenStyle.NoPen)
         if self._mouth > 0.02:
-            # The cavity is dark but never pure black — a black oval on a glowing
-            # head reads as a hole, not a mouth. Tinting it with the theme keeps
-            # it part of the hologram.
             p.setBrush(QBrush(_blend(bg, primary, 16 + 26 * self._mouth)))
             p.drawPolygon(inner)
 
-            # Upper teeth: a bright strip hanging from the upper lip. It is the
-            # single cheapest thing that makes an open mouth look like speech.
+            # Upper teeth: a bright strip hanging from the upper lip
             ux, uy = xs[self._lip_up], ys[self._lip_up]
             th = open_h * 0.30
             pts = [QPointF(float(x), float(y)) for x, y in zip(ux, uy)]
@@ -704,12 +789,26 @@ class HoloAvatar:
             p.setBrush(QBrush(_blend(bg, primary, 150 + 60 * self._mouth)))
             p.drawPolygon(QPolygonF(pts))
 
-            # A warm pool at the back of the throat, strongest when wide open.
+            # Warm vocal cavity glow
             p.setBrush(QBrush(_c(accent, 40 * self._mouth * face)))
             p.drawPolygon(inner)
 
+        # Contoured lips
         p.setBrush(Qt.BrushStyle.NoBrush)
-        p.setPen(QPen(_c(primary, (150 + 70 * self._mouth) * face), 1.3))
-        p.drawPolygon(inner)                       # lip edge
-        p.setPen(QPen(_c(primary, 110 * face), 1.1))
-        p.drawPolygon(self._ring(xs, ys, lm["lips_out"]))
+        p.setPen(QPen(_c(primary, (160 + 70 * self._mouth) * face), 1.4))
+        p.drawPolygon(inner)                       # lip inner edge
+        p.setPen(QPen(_c(primary, 125 * face), 1.2))
+        p.drawPolygon(outer)                       # lip outer edge
+
+        # Soft feminine lip gloss highlight on the lower lip
+        if self._mouth < 0.28:
+            ob = outer.boundingRect()
+            gloss_w = ob.width() * 0.28
+            gloss_cx = ob.center().x()
+            gloss_cy = ob.bottom() - 3.2
+            gloss_grad = QRadialGradient(gloss_cx, gloss_cy, gloss_w * 0.6)
+            gloss_grad.setColorAt(0.0, QColor(255, 210, 235, int(150 * face)))
+            gloss_grad.setColorAt(1.0, QColor(255, 210, 235, 0))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(gloss_grad))
+            p.drawEllipse(QPointF(gloss_cx, gloss_cy), gloss_w * 0.5, 2.2)
