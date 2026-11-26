@@ -77,12 +77,16 @@ def _compress_silence(
     return np.concatenate(out) if out else arr
 
 
+from core.audio_lock import audio_lock
+
+
 def _play_np(samples, sample_rate: int) -> None:
     """Play float32 mono (or stereo) audio via sounddevice.
     Accepts numpy arrays or PyTorch tensors.
     """
-    sd.play(_to_numpy(samples), sample_rate)
-    sd.wait()
+    with audio_lock():
+        sd.play(_to_numpy(samples), sample_rate)
+        sd.wait()
 
 
 def _play_audio_bytes(audio_bytes: bytes) -> None:
@@ -94,8 +98,9 @@ def _play_audio_bytes(audio_bytes: bytes) -> None:
         nchannels=1,
     )
     samples = np.array(decoded.samples, dtype=np.float32)
-    sd.play(samples, decoded.sample_rate)
-    sd.wait()
+    with audio_lock():
+        sd.play(samples, decoded.sample_rate)
+        sd.wait()
 
 
 # ---------------------------------------------------------------------------

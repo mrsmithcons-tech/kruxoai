@@ -75,8 +75,12 @@ class PassiveRoomSentry:
         burst_chunks = []
 
         try:
+            from core.audio_lock import is_audio_locked
             with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype='float32', blocksize=chunk_samples) as stream:
                 while self._running:
+                    if is_audio_locked():
+                        time.sleep(0.1)
+                        continue
                     data, overflowed = stream.read(chunk_samples)
                     if not self._running:
                         break

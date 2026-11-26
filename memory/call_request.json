@@ -1,5 +1,6 @@
 {
-  "pending": false,
-  "status": "clear",
-  "at": "2026-11-26 15:12:14"
+  "pending": true,
+  "from": "KruxoAI",
+  "reason": "Test call - your PWA is live, open the link and answer",
+  "at": "2026-11-26 18:04:36"
 }

@@ -326,13 +326,15 @@ def compute_voice_similarity(
 # ── Audio Capture Helper ──────────────────────────────────────────────────────
 
 def record_audio_clip(duration: float = 3.0, sample_rate: int = SAMPLE_RATE) -> Tuple[Optional[np.ndarray], Optional[str]]:
-    """Record audio clip from the default input device."""
+    """Record audio clip from the default input device with audio serialization."""
     try:
+        from core.audio_lock import audio_lock
         import sounddevice as sd
         num_samples = int(duration * sample_rate)
-        recording = sd.rec(num_samples, samplerate=sample_rate, channels=1, dtype="float32")
-        sd.wait()
-        return recording.flatten(), None
+        with audio_lock():
+            recording = sd.rec(num_samples, samplerate=sample_rate, channels=1, dtype="float32")
+            sd.wait()
+            return recording.flatten(), None
     except Exception as e:
         return None, str(e)
 

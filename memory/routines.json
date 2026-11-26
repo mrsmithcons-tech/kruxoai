@@ -56,8 +56,8 @@
    "source": "",
    "created": 1795530140.7826989,
    "next_ts": 0.0,
-   "last_run": 1795657966.0798419,
-   "runs": 3,
+   "last_run": 1795685325.9252472,
+   "runs": 7,
    "last_result": "ran"
   },
   {
@@ -110,9 +110,162 @@
    "source": "",
    "created": 1795598224.2263658,
    "next_ts": 0.0,
-   "last_run": 1795657966.1406128,
-   "runs": 3,
+   "last_run": 1795685325.9469266,
+   "runs": 7,
    "last_result": "ran"
+  },
+  {
+   "id": "r04acdd",
+   "name": "Batch 11k follow-ups start today. Check Muse AI for details.",
+   "kind": "say",
+   "builtin": "",
+   "text": "Batch 11k follow-ups start today. Check Muse AI for details.",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "once",
+     "at_ts": 1795752000.0
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "reminder",
+   "created": 1795697363.1034284,
+   "next_ts": 1795752000.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
+  },
+  {
+   "id": "r366c33",
+   "name": "Batch 11k follow-ups continue. Check Muse AI for details.",
+   "kind": "say",
+   "builtin": "",
+   "text": "Batch 11k follow-ups continue. Check Muse AI for details.",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "once",
+     "at_ts": 1795838400.0
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "reminder",
+   "created": 1795697363.2566211,
+   "next_ts": 1795838400.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
+  },
+  {
+   "id": "re9cd97",
+   "name": "Send Batch 11k follow-ups (as per 27-28 Nov schedule)",
+   "kind": "say",
+   "builtin": "",
+   "text": "Send Batch 11k follow-ups (as per 27-28 Nov schedule)",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "once",
+     "at_ts": 1795752000.0
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "reminder",
+   "created": 1795697499.307692,
+   "next_ts": 1795752000.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
+  },
+  {
+   "id": "r615a67",
+   "name": "Office Hours Start",
+   "kind": "say",
+   "builtin": "",
+   "text": "Assalam-o-Alaikum Faisal, office timing start ho gayi hai.",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "weekly",
+     "time": "09:00",
+     "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "",
+   "created": 1795697499.3836355,
+   "next_ts": 1795752000.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
+  },
+  {
+   "id": "r73c2ae",
+   "name": "Office Hours End",
+   "kind": "say",
+   "builtin": "",
+   "text": "Faisal, office timing khatam ho gayi hai.",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "weekly",
+     "time": "16:00",
+     "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "",
+   "created": 1795697499.3882964,
+   "next_ts": 1795777200.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
   }
  ],
  "seeded": true

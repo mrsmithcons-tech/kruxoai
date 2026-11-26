@@ -90,17 +90,58 @@ def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]
 
 
 def _capture_screen() -> tuple[bytes, str]:
+    """Capture screen with multi-tier fallback (MSS -> PIL ImageGrab -> PyAutoGUI -> Standby Frame).
 
-    if not _MSS:
-        raise RuntimeError("mss is not installed. Run: pip install mss")
+    Guarantees no unhandled BitBlt access-denied or session-locked exceptions.
+    """
+    # 1. Primary: MSS (High-performance multi-monitor capture)
+    if _MSS:
+        try:
+            with mss.mss() as sct:
+                monitors = sct.monitors          # [0] = all combined, [1..n] = real screens
+                target   = monitors[1] if len(monitors) > 1 else monitors[0]
+                shot     = sct.grab(target)
+                png      = mss.tools.to_png(shot.rgb, shot.size)
+                return _compress(png, "PNG")
+        except Exception as e:
+            print(f"[Vision] ⚠️  MSS capture failed ({e}), attempting ImageGrab fallback...")
 
-    with mss.mss() as sct:
-        monitors = sct.monitors          # [0] = all combined, [1..n] = real screens
-        target   = monitors[1] if len(monitors) > 1 else monitors[0]
-        shot     = sct.grab(target)
-        png      = mss.tools.to_png(shot.rgb, shot.size)
+    # 2. Secondary: PIL ImageGrab (Standard GDI/DWM capture)
+    if _PIL:
+        try:
+            from PIL import ImageGrab
+            img = ImageGrab.grab()
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            return _compress(buf.getvalue(), "PNG")
+        except Exception as e:
+            print(f"[Vision] ⚠️  ImageGrab failed ({e}), attempting PyAutoGUI fallback...")
 
-    return _compress(png, "PNG")
+    # 3. Tertiary: PyAutoGUI screenshot
+    try:
+        import pyautogui
+        shot = pyautogui.screenshot()
+        buf = io.BytesIO()
+        shot.save(buf, format="PNG")
+        return _compress(buf.getvalue(), "PNG")
+    except Exception as e:
+        print(f"[Vision] ⚠️  PyAutoGUI screenshot failed ({e}), generating standby frame...")
+
+    # 4. Final: Clean Standby Frame when Windows GDI is locked or headless
+    if _PIL:
+        try:
+            from PIL import Image, ImageDraw
+            standby = Image.new("RGB", (_IMG_MAX_W, _IMG_MAX_H), color=(5, 12, 20))
+            draw = ImageDraw.Draw(standby)
+            msg = "Desktop Display in Standby or Screen Locked (GDI BitBlt Restricted)"
+            draw.text((360, 340), msg, fill=(0, 212, 255))
+            buf = io.BytesIO()
+            standby.save(buf, format="JPEG", quality=_JPEG_Q)
+            return buf.getvalue(), "image/jpeg"
+        except Exception:
+            pass
+
+    return b"", "image/jpeg"
 
 
 def _cv2_backend() -> int:

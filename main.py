@@ -3120,6 +3120,12 @@ def main():
             print(f"[JARVIS] Living Awareness start error: {e}")
 
         try:
+            from core.room_sentry import room_sentry
+            room_sentry.start()
+        except Exception as e:
+            print(f"[JARVIS] Room Sentry start error: {e}")
+
+        try:
             from core.watchdog import supervisor_watchdog
             supervisor_watchdog.start()
         except Exception as e:

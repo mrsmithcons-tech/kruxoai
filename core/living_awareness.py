@@ -409,6 +409,9 @@ class LivingAwareness:
             return
         if _in_quiet_hours(cfg):
             return
+        if self._is_dnd_active(snap, now):
+            self._log("[LivingAwareness] DND active — staying quiet.")
+            return
         if now - self._last_spoke_at < SPEAK_COOLDOWN_SECONDS:
             return
         sig = self._judge_signature(snap)
@@ -489,8 +492,47 @@ class LivingAwareness:
         self._act(line, security=False)
         self._journal("proactive_brain", {"reason": reason, "text": line})
 
+    def _is_dnd_active(self, snap: Dict[str, Any], now: float) -> bool:
+        """Layer 6 — Do Not Disturb:
+        Kruxo must NOT interrupt when Faisal is talking to someone, on a call, or in a meeting.
+        """
+        # 1. Direct Call Mode / Call Shield
+        try:
+            call_file = ROOT_DIR / "memory" / "call_mode.json"
+            if call_file.exists():
+                data = json.loads(call_file.read_text(encoding="utf-8"))
+                if data.get("active"):
+                    return True
+        except Exception:
+            pass
+
+        # 2. Check if speech was heard recently in the room (within last 60s)
+        try:
+            from core.room_sentry import room_sentry
+            if room_sentry.is_active():
+                last_speech = getattr(room_sentry, "_last_speech_time", 0.0)
+                if last_speech and (now - last_speech < 60.0):
+                    return True
+        except Exception:
+            pass
+
+        # 3. Communication / Meeting application in foreground
+        app_info = snap.get("app") or {}
+        app_name = str(app_info.get("app") or "").lower()
+        app_title = str(app_info.get("title") or "").lower()
+
+        meeting_apps = ("zoom.exe", "teams.exe", "skype.exe", "discord.exe", "whatsapp.exe", "slack.exe")
+        if app_name in meeting_apps:
+            call_keywords = ("call", "meeting", "talking", "huddle", "room", "connected")
+            if any(k in app_title for k in call_keywords):
+                return True
+
+        return False
+
     # -- decisions (small rules, cooldowns, security ignores cooldown) ----
     def _evaluate_rules(self, snap: Dict[str, Any], now: float, minutes_on_app: float) -> None:
+        if self._is_dnd_active(snap, now):
+            return
         app = snap["app"].get("app") or "unknown"
 
         # Away -> back: greet once (presence comes from the sentry/presence
