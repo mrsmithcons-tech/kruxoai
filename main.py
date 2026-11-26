@@ -1613,6 +1613,8 @@ class JarvisLive:
         print(f"[JARVIS] 🔧 {name}  {args}")
         _t_tool = time.monotonic()
         self.ui.set_state("THINKING")
+        if hasattr(self.ui, "update_feature"):
+            self.ui.update_feature("plugins", "RUNNING", f"Running: {name}", "PRI")
 
 
         if name == "save_memory":
@@ -1790,6 +1792,8 @@ class JarvisLive:
 
         if not self.ui.muted:
             self.ui.set_state("LISTENING")
+        if hasattr(self.ui, "update_feature"):
+            self.ui.update_feature("plugins", "45 ACTIVE", f"Last: {name} (Done)", "GREEN")
 
         # How long the tool itself took. A long silence after a tool call is
         # either this number or the model's own time before and after it — and
@@ -2836,6 +2840,18 @@ class JarvisLive:
                     self._interrupted          = False
 
                     print("[JARVIS] Connected.")
+                    try:
+                        if self._engine_caps is None:
+                            self.ui.write_log("SYS: Engine: Gemini Live.")
+                        else:
+                            from memory.config_manager import (
+                                get_pipeline, get_provider_config)
+                            _llm_id = str(get_pipeline().get("llm") or "")
+                            _model = str(get_provider_config(_llm_id).get("model")
+                                         or _llm_id or "unknown")
+                            self.ui.write_log(f"SYS: Engine: pipeline · {_model}.")
+                    except Exception:
+                        pass
                     if _resumed_with:
                         # Say it plainly: the difference between "it reconnected"
                         # and "it reconnected and still knows what we were doing"

@@ -219,6 +219,13 @@ class JarvisUI:
     def wake_get_state(self, cb):
         self._win.wake_get_state = cb
 
+    def update_feature(self, feature_id: str, status: str, detail: str = "", color_key: str = "GREEN") -> None:
+        """Thread-safe: update status, detail, or color for any feature card in the Live Feature Monitor."""
+        try:
+            self._win._feat_sig.emit(str(feature_id), str(status), str(detail), str(color_key))
+        except Exception:
+            pass
+
     def set_audio_level(self, level: float) -> None:
         """Thread-safe: feed a 0.0–1.0 live audio level to the HUD waveform.
         Called from the audio threads; a plain float store is atomic under the

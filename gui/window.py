@@ -93,6 +93,7 @@ from gui.style import DISPLAY_CSS, btn_css, hud_font, px_font, scroll_css
 from gui.widgets import (ArcLogo, CommandFrame, DataRow, HeaderBar, HoloPanel, IconButton,
                          PanelText, RingGauge, RoutineRow, Sparkline, StateChip, StatusStrip,
                          TaskRow)
+from gui.feature_monitor import FeatureMonitorWidget
 
 
 class MainWindow(QMainWindow):
@@ -120,6 +121,7 @@ class MainWindow(QMainWindow):
     _review_sig     = pyqtSignal(str, str, object, object)  # document review payload
     _brand_sig      = pyqtSignal(str, str)   # (title, subtitle) — thread-safe rebranding
     _call_mode_sig  = pyqtSignal()           # thread-safe call mode toggle (mute + interrupt)
+    _feat_sig       = pyqtSignal(str, str, str, str)  # (feature_id, status, detail, color_key)
 
     def __init__(self, face_path: str):
         super().__init__()
@@ -420,6 +422,7 @@ class MainWindow(QMainWindow):
         self._quiz_sig.connect(self._show_quiz)
         self._quiz_hide_sig.connect(self._hide_quiz)
         self._review_sig.connect(self._show_review)
+        self._feat_sig.connect(self._on_feature_update)
         self._cam_stop = threading.Event()
 
         # Camera preview overlay (child of central widget, positioned in resizeEvent)
@@ -1256,6 +1259,12 @@ class MainWindow(QMainWindow):
         except Exception:
             self._row_proc.set_value("--")
 
+        if hasattr(self, "_feat_sig"):
+            try:
+                self._feat_sig.emit("tasks", "RUNNING", "MCP Server Port 8000 · Routines & Daemons active", "GREEN")
+            except Exception:
+                pass
+
     def _build_header(self) -> QWidget:
         w = HeaderBar()
         w.setFixedHeight(58)
@@ -1362,9 +1371,15 @@ class MainWindow(QMainWindow):
     def _refresh_identity_rows(self) -> None:
         """Engine and voice, read from config — on start and whenever they change."""
         try:
-            from memory.config_manager import get_provider_mode, get_voice
+            from memory.config_manager import (
+                get_pipeline, get_provider_config, get_provider_mode, get_voice)
             mode = str(get_provider_mode() or "gemini")
-            engine = "GEMINI LIVE" if mode == "gemini" else f"LOCAL {mode.upper()}"
+            if mode == "gemini":
+                engine = "GEMINI LIVE"
+            else:
+                llm = str(get_pipeline().get("llm") or "")
+                name = (llm.partition("@")[2] or llm or "PIPELINE").upper()
+                engine = f"PIPELINE · {name}"
             voice = str(get_voice() or "--").upper()
         except Exception:
             engine, voice = "GEMINI LIVE", "--"
@@ -1645,12 +1660,40 @@ class MainWindow(QMainWindow):
         w.setFixedWidth(300)
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(10)
+        lay.setSpacing(8)
 
         comm = HoloPanel("COMMUNICATIONS", "LOG")
         self._log = LogWidget()
         comm.body.addWidget(self._log)
-        lay.addWidget(comm, stretch=1)
+        lay.addWidget(comm, stretch=3)
+
+        self._feat_panel = HoloPanel("ACTIVE FEATURES", "6 ONLINE")
+        self._feat_panel.setMaximumHeight(210)
+        self._feat_panel.setMinimumHeight(120)
+        self._feat_monitor = FeatureMonitorWidget(self)
+        self._feat_panel.body.addWidget(self._feat_monitor)
+
+        self._feat_collapse_btn = QPushButton("▲")
+        self._feat_collapse_btn.setFixedSize(22, 18)
+        self._feat_collapse_btn.setFont(px_font(8, QFont.Weight.Bold))
+        self._feat_collapse_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._feat_collapse_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: transparent; color: {C.TEXT_MED};
+                border: 1px solid {C.BORDER}; border-radius: 2px;
+            }}
+            QPushButton:hover {{ color: {C.PRI}; border-color: {C.PRI_DIM}; }}
+        """)
+        self._feat_collapse_btn.clicked.connect(self._toggle_feat_panel)
+        self._feat_panel.add_header_widget(self._feat_collapse_btn)
+
+        self._feat_monitor.set_click_handler("plugins", self._open_plugin_manager)
+        self._feat_monitor.set_click_handler("call_shield", self._toggle_call_mode)
+        self._feat_monitor.set_click_handler("voice", self._toggle_mute)
+        self._feat_monitor.set_click_handler("brain", self._open_providers)
+        self._feat_monitor.set_click_handler("tasks", self._flip_tasks_panel)
+
+        lay.addWidget(self._feat_panel, stretch=2)
 
         cmd = HoloPanel("COMMAND", "INPUT")
         self._drop_zone = FileDropZone()
@@ -1690,6 +1733,30 @@ class MainWindow(QMainWindow):
         self._sync_call_mode_btn()
         lay.addWidget(cmd)
         return w
+
+    def _toggle_feat_panel(self):
+        if not hasattr(self, "_feat_monitor"):
+            return
+        vis = not self._feat_monitor.isVisible()
+        self._feat_monitor.setVisible(vis)
+        if vis:
+            self._feat_panel.setMaximumHeight(210)
+            self._feat_panel.setMinimumHeight(120)
+            self._feat_collapse_btn.setText("▲")
+        else:
+            self._feat_panel.setFixedHeight(HoloPanel.HEADER + 6)
+            self._feat_collapse_btn.setText("▼")
+
+    def _on_feature_update(self, feature_id: str, status: str, detail: str, color_key: str):
+        if hasattr(self, "_feat_monitor"):
+            self._feat_monitor.update_feature(feature_id, status, detail, color_key)
+            if hasattr(self, "_feat_panel"):
+                cnt = self._feat_monitor.active_count()
+                self._feat_panel.set_code(f"{cnt} ONLINE")
+
+    def update_feature(self, feature_id: str, status: str, detail: str = "", color_key: str = "GREEN"):
+        """Thread-safe UI method to update feature card."""
+        self._feat_sig.emit(feature_id, status, detail, color_key)
 
     def _build_quick_drawer(self) -> QWidget:
         """Floating panel under the gear: the things you set once."""
@@ -1867,9 +1934,9 @@ class MainWindow(QMainWindow):
         def work():
             try:
                 self._wake_state()
+                self._wake_btns_sig.emit()
             except Exception:
                 pass
-            self._wake_btns_sig.emit()
         threading.Thread(target=work, daemon=True, name="wake-state-warm").start()
 
     def _toggle_drawer(self, checked: bool):
@@ -3029,6 +3096,13 @@ class MainWindow(QMainWindow):
 
     def _sync_call_mode_btn(self):
         active = getattr(self, "_muted", False)
+        if hasattr(self, "_feat_sig"):
+            if active:
+                self._feat_sig.emit("call_shield", "ISOLATED", "Audio cut · Mic isolated for call", "RED")
+                self._feat_sig.emit("voice", "MUTED", "Call Mode active", "RED")
+            else:
+                self._feat_sig.emit("call_shield", "ARMED", "1-Click Audio Cut & Mute [F4 / Pause]", "GREEN")
+                self._feat_sig.emit("voice", "LISTENING", "Gemini Live · Kore (Realistic) · 24kHz", "GREEN")
         if hasattr(self, "_call_mode_btn"):
             if active:
                 self._call_mode_btn.setText("🔴  ON CALL: MUTED & STOPPED")
@@ -3109,6 +3183,18 @@ class MainWindow(QMainWindow):
         self.hud.speaking = (state == "SPEAKING")
         if hasattr(self, "_state_chip"):
             self._state_chip.set_state(state)
+        if hasattr(self, "_feat_sig"):
+            st = (state or "").upper()
+            if st == "LISTENING":
+                self._feat_sig.emit("voice", "LISTENING", "Microphone active · listening", "GREEN")
+                self._feat_sig.emit("brain", "ONLINE", "Ready for prompt · Gemini 3.1", "GREEN")
+            elif st == "SPEAKING":
+                self._feat_sig.emit("voice", "SPEAKING", "Streaming synthesis · Kore (Realistic)", "GREEN")
+            elif st == "THINKING":
+                self._feat_sig.emit("voice", "THINKING", "Processing speech buffer...", "PRI")
+                self._feat_sig.emit("brain", "INFERENCE", "Analyzing query & tool routing...", "PRI")
+            elif st == "SLEEPING":
+                self._feat_sig.emit("voice", "STANDBY", "Asleep · Say 'Hey Jarvis' to wake", "YELLOW")
 
     def _check_license(self) -> bool:
         """Verify commercial lifetime license status."""

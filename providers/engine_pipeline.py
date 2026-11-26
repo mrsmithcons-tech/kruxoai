@@ -578,7 +578,8 @@ class PipelineEngine:
             if text:
                 self._history.append({"role": "assistant", "content": text})
 
-            self._log(f"SYS: replied in {time.monotonic() - t0:.1f}s")
+            _who = str(getattr(self._llm, "model", "") or "the chosen model")
+            self._log(f"SYS: replied in {time.monotonic() - t0:.1f}s via {_who}")
             self._print_timing()
             await self._emit(Msg.turn_end())
             if self._followup:
