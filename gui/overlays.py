@@ -40,7 +40,7 @@ from gui.theme import (
     qcol,
 )
 
-from gui.style import hud_font
+from gui.style import hud_font, scroll_css
 
 
 class SetupOverlay(QWidget):
@@ -503,10 +503,12 @@ class CustomizeOverlay(QWidget):
 class PluginManagerOverlay(QWidget):
     """Floating overlay — lists discovered plugins with per-plugin ON/OFF toggles."""
 
-    _OW = 420
+    _OW = 440
+    _MAX_H = 540
 
     def __init__(self, plugins: list[dict], parent=None):
         super().__init__(parent)
+        self._plugins = plugins or []
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.setStyleSheet(f"""
             PluginManagerOverlay {{
@@ -529,14 +531,28 @@ class PluginManagerOverlay(QWidget):
         sep.setStyleSheet(f"color: {C.BORDER}; margin: 2px 0;")
         lay.addWidget(sep)
 
-        if not plugins:
+        if not self._plugins:
             empty = QLabel("No plugins found in /plugins.")
             empty.setFont(hud_font(8))
             empty.setStyleSheet(f"color: {C.TEXT_DIM}; background: transparent;")
             lay.addWidget(empty)
+        else:
+            scroll = QScrollArea()
+            scroll.setWidgetResizable(True)
+            scroll.setFrameShape(QFrame.Shape.NoFrame)
+            scroll.setStyleSheet(f"QScrollArea {{ background: transparent; border: none; }} {scroll_css()}")
+            inner = QWidget()
+            inner.setStyleSheet("background: transparent;")
+            inner_lay = QVBoxLayout(inner)
+            inner_lay.setContentsMargins(0, 0, 8, 0)
+            inner_lay.setSpacing(6)
 
-        for p in plugins:
-            lay.addLayout(self._build_row(p))
+            for p in self._plugins:
+                inner_lay.addLayout(self._build_row(p))
+
+            inner_lay.addStretch(1)
+            scroll.setWidget(inner)
+            lay.addWidget(scroll, stretch=1)
 
         lay.addSpacing(4)
         close_btn = QPushButton("CLOSE")
@@ -552,7 +568,16 @@ class PluginManagerOverlay(QWidget):
         """)
         close_btn.clicked.connect(self.hide)
         lay.addWidget(close_btn)
-        self.adjustSize()
+
+    def fit_geometry(self, cw_w: int, cw_h: int):
+        desired_h = min(self._MAX_H, 110 + len(self._plugins) * 32)
+        oh = min(desired_h, max(220, cw_h - 40))
+        self.setGeometry(
+            max(10, (cw_w - self._OW) // 2),
+            max(10, (cw_h - oh) // 2),
+            self._OW,
+            oh,
+        )
 
     def _build_row(self, p: dict) -> QHBoxLayout:
         row = QHBoxLayout(); row.setSpacing(6)
@@ -1436,7 +1461,7 @@ class PluginSettingsOverlay(QWidget):
             scroll = QScrollArea()
             scroll.setWidgetResizable(True)
             scroll.setFrameShape(QFrame.Shape.NoFrame)
-            scroll.setStyleSheet("QScrollArea { background: transparent; }")
+            scroll.setStyleSheet(f"QScrollArea {{ background: transparent; }} {scroll_css()}")
             inner = QWidget()
             inner.setStyleSheet("background: transparent;")
             form = QVBoxLayout(inner)

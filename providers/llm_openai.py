@@ -158,6 +158,10 @@ CATALOG = (
     {"id": "openrouter", "label": "OpenRouter",
      "note": "cloud · many models behind one key", "local": False,
      "values": {"base_url": PRESETS["OpenRouter"], **_CLOUD}},
+    {"id": "nemotron",   "label": "NVIDIA Nemotron",
+     "note": "cloud · via OpenRouter · Lightning 30B · free tier", "local": False,
+     "values": {"base_url": PRESETS["OpenRouter"], **_CLOUD,
+                 "model": "nvidia/nemotron-3.5-lightning:free"}},
     {"id": "together",   "label": "Together",
      "note": "cloud · needs a key", "local": False,
      "values": {"base_url": PRESETS["Together"], **_CLOUD}},
@@ -496,6 +500,8 @@ class OpenAICompatLLM:
             body["reasoning_split"] = True
         if "groq" in self.base and "gpt-oss" in self.model:
             body["reasoning_effort"] = "low"
+        if "nemotron" in self.model.lower():
+            body["reasoning_effort"] = "none"
         if self._max_output_tokens:
             body["max_tokens"] = self._max_output_tokens
         return body
@@ -790,7 +796,7 @@ PROVIDER = {
     "id": "openai_compat",
     "kind": "llm",
     "label": "OpenAI-compatible",
-    "hint": "Ollama · LM Studio · llama.cpp · vLLM · Groq · DeepSeek · OpenRouter · OpenAI · MiniMax",
+    "hint": "Ollama · LM Studio · llama.cpp · vLLM · Groq · DeepSeek · OpenRouter · NVIDIA Nemotron · OpenAI · MiniMax",
     # httpx ships with google-genai, so this is always true — checked anyway,
     # because a provider must never raise during discovery.
     "requires": ("httpx",),

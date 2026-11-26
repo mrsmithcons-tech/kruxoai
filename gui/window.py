@@ -1197,6 +1197,8 @@ class MainWindow(QMainWindow):
                 (cw.height() - oh) // 2,
                 ow, oh,
             )
+        if hasattr(self, "_plugin_manager_overlay") and self._plugin_manager_overlay and self._plugin_manager_overlay.isVisible():
+            self._plugin_manager_overlay.fit_geometry(cw.width(), cw.height())
         # Camera preview — bottom-right corner of the center/HUD area
         pw = _CameraPreview._W
         ph = self._cam_preview.height() or _CameraPreview._H
@@ -2954,12 +2956,7 @@ class MainWindow(QMainWindow):
         plugins = self.get_plugins() if self.get_plugins else []
         cw = self.centralWidget()
         ov = PluginManagerOverlay(plugins, parent=cw)
-        ov.adjustSize()
-        ov.setGeometry(
-            (cw.width()  - ov.width())  // 2,
-            (cw.height() - ov.height()) // 2,
-            ov.width(), ov.height(),
-        )
+        ov.fit_geometry(cw.width(), cw.height())
         ov.show()
         ov.raise_()
         self._plugin_manager_overlay = ov   # keep a reference so it isn't GC'd
