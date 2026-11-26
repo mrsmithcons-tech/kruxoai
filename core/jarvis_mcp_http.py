@@ -193,6 +193,22 @@ def _call_request(action: str, reason: str = "") -> dict:
     try:
         CALL_REQUEST_FILE.write_text(json.dumps(
             {"pending": False, "status": action, "at": now}, indent=2), encoding="utf-8")
+        # Sync Call Shield with desktop HUD
+        if action == "answer":
+            call_mode_file = Path(BASE_DIR) / "memory" / "call_mode.json"
+            call_mode_file.write_text(json.dumps({"active": True, "last_turn": time.time(), "channel": "pwa"}, indent=2), encoding="utf-8")
+            try:
+                alert_req = urllib.request.Request(
+                    "http://127.0.0.1:9876/panel",
+                    data=json.dumps({"title": "📱 PWA CALL ACTIVE", "text": "Live phone call connected via kruxoai.com/call/. Desktop mic isolated."}).encode("utf-8"),
+                    headers={"Content-Type": "application/json"}
+                )
+                urllib.request.urlopen(alert_req, timeout=1.0)
+            except Exception:
+                pass
+        elif action in ("decline", "clear", "hangup"):
+            call_mode_file = Path(BASE_DIR) / "memory" / "call_mode.json"
+            call_mode_file.write_text(json.dumps({"active": False, "at": now}, indent=2), encoding="utf-8")
     except Exception:
         pass
     return {"ok": True, "pending": False, "status": action}
@@ -203,6 +219,11 @@ def _call_chat(text: str, history=None) -> dict:
     text = (text or "").strip()
     if not text:
         return {"ok": False, "error": "Empty message."}
+    try:
+        call_mode_file = Path(BASE_DIR) / "memory" / "call_mode.json"
+        call_mode_file.write_text(json.dumps({"active": True, "last_turn": time.time(), "channel": "pwa"}, indent=2), encoding="utf-8")
+    except Exception:
+        pass
     turns = []
     try:
         for h in (history or [])[-6:]:

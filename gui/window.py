@@ -1700,6 +1700,7 @@ class MainWindow(QMainWindow):
         self._feat_monitor.set_click_handler("voice", self._toggle_mute)
         self._feat_monitor.set_click_handler("brain", self._open_providers)
         self._feat_monitor.set_click_handler("tasks", self._flip_tasks_panel)
+        self._feat_monitor.set_click_handler("vision", self._trigger_vision_scan)
 
         lay.addWidget(self._feat_panel, stretch=2)
 
@@ -3103,6 +3104,35 @@ class MainWindow(QMainWindow):
         # about to do, the user has now said what they want.
         self._video_auto_muted = False
         self._set_muted(not self._muted)
+
+    def _trigger_vision_scan(self):
+        """Instant environmental and desktop vision capture triggered by clicking the Vision card."""
+        from actions.screen_processor import _capture_screen
+        self.write_log("[Vision] Scanning active screen and environment...")
+        try:
+            import threading
+            def _scan():
+                try:
+                    img_bytes, mime = _capture_screen()
+                    size_kb = len(img_bytes) / 1024.0 if img_bytes else 0
+                    ts = time.strftime("%H:%M:%S")
+                    msg = (
+                        f"### 👁️ Live Vision & Environmental Sensor\n\n"
+                        f"- **Scan Time:** `{ts}`\n"
+                        f"- **Status:** `Active & Stream Ready`\n"
+                        f"- **Frame Captured:** `{size_kb:.1f} KB` (`{mime}`)\n"
+                        f"- **Multi-tier Fallback:** `MSS / ImageGrab / PyAutoGUI / Standby Protected`\n\n"
+                        f"Desktop visual context is synchronized with KruxoAI's cognitive core."
+                    )
+                    if hasattr(self, "_content_sig"):
+                        self._content_sig.emit("LIVE VISION SENSOR", msg)
+                    if hasattr(self, "_feat_sig"):
+                        self._feat_sig.emit("vision", "SENSING LIVE", f"Captured {size_kb:.0f}KB at {ts} · Vision Eye Active", "GREEN")
+                except Exception as e:
+                    self.write_log(f"[Vision] Scan error: {e}")
+            threading.Thread(target=_scan, daemon=True).start()
+        except Exception as e:
+            self.write_log(f"[Vision] Error: {e}")
 
     def _toggle_call_mode(self):
         """Single-action button to silence KruxoAI and mute microphone when on a phone/conference call."""

@@ -90,17 +90,16 @@ def _play_np(samples, sample_rate: int) -> None:
 
 
 def _play_audio_bytes(audio_bytes: bytes) -> None:
-    """Decode MP3/WAV/OGG bytes and play via sounddevice (uses miniaudio)."""
-    import miniaudio
-    decoded = miniaudio.decode(
-        audio_bytes,
-        output_format=miniaudio.SampleFormat.FLOAT32,
-        nchannels=1,
-    )
-    samples = np.array(decoded.samples, dtype=np.float32)
-    with audio_lock():
-        sd.play(samples, decoded.sample_rate)
-        sd.wait()
+    """Decode MP3/WAV/OGG bytes and play via sounddevice (uses soundfile)."""
+    try:
+        import io
+        import soundfile as sf
+        samples, sample_rate = sf.read(io.BytesIO(audio_bytes), dtype="float32")
+        with audio_lock():
+            sd.play(samples, sample_rate)
+            sd.wait()
+    except Exception as e:
+        print(f"[TTS] _play_audio_bytes error: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -110,7 +109,7 @@ def _play_audio_bytes(audio_bytes: bytes) -> None:
 class EdgeTTSEngine:
     """Microsoft EdgeTTS – free, requires internet."""
 
-    def __init__(self, voice: str = "en-US-GuyNeural"):
+    def __init__(self, voice: str = "en-US-AriaNeural"):
         self.voice = voice
 
     def speak(self, text: str) -> None:
@@ -442,6 +441,6 @@ def create_tts_player(config: dict) -> TTSPlayer:
         voice_id = config.get("tts_voice", "pNInz6obpgDQGcFmaJgB")
         engine   = ElevenLabsTTSEngine(api_key=api_key, voice_id=voice_id)
     else:   # edgetts (default)
-        voice  = config.get("tts_voice", "en-US-GuyNeural")
+        voice  = config.get("tts_voice", "en-US-AriaNeural")
         engine = EdgeTTSEngine(voice=voice)
     return TTSPlayer(engine)

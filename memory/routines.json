@@ -266,6 +266,114 @@
    "last_run": 0.0,
    "runs": 0,
    "last_result": ""
+  },
+  {
+   "id": "rf3d8ea",
+   "name": "Morning Briefing",
+   "kind": "prompt",
+   "builtin": "",
+   "text": "give me the morning briefing",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "weekly",
+     "time": "09:00",
+     "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "",
+   "created": 1795700957.059496,
+   "next_ts": 1795752000.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
+  },
+  {
+   "id": "rda1e21",
+   "name": "Midday Checkin",
+   "kind": "prompt",
+   "builtin": "",
+   "text": "do a midday wellness checkin",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "weekly",
+     "time": "13:00",
+     "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "",
+   "created": 1795700957.06592,
+   "next_ts": 1795766400.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
+  },
+  {
+   "id": "r4820c8",
+   "name": "Daily Wrapup",
+   "kind": "prompt",
+   "builtin": "",
+   "text": "summarize the day's progress",
+   "trigger": {
+    "type": "time",
+    "rule": {
+     "type": "weekly",
+     "time": "16:00",
+     "days": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+     ]
+    }
+   },
+   "options": {},
+   "deliver": "voice",
+   "agent": "general",
+   "minutes": 10,
+   "quiet": false,
+   "system": false,
+   "enabled": true,
+   "source": "",
+   "created": 1795700957.0731974,
+   "next_ts": 1795777200.0,
+   "last_run": 0.0,
+   "runs": 0,
+   "last_result": ""
   }
  ],
  "seeded": true
