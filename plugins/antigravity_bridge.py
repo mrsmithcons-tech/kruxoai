@@ -117,6 +117,15 @@ class _BridgeHandler(BaseHTTPRequestHandler):
             self._send_json({"error": "Not Found"}, status=404)
 
     def do_POST(self):
+        if self.path == "/call_mode":
+            player = _get_player()
+            if player and hasattr(player, "toggle_call_mode"):
+                player.toggle_call_mode()
+                self._send_json({"ok": True, "call_mode_toggled": True})
+            else:
+                self._send_json({"error": "Player unavailable"}, status=503)
+            return
+
         if self.path in ("/panel", "/message", "/reply"):
             try:
                 length = int(self.headers.get("Content-Length", 0))

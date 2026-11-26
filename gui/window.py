@@ -119,6 +119,7 @@ class MainWindow(QMainWindow):
     _quiz_hide_sig  = pyqtSignal()
     _review_sig     = pyqtSignal(str, str, object, object)  # document review payload
     _brand_sig      = pyqtSignal(str, str)   # (title, subtitle) — thread-safe rebranding
+    _call_mode_sig  = pyqtSignal()           # thread-safe call mode toggle (mute + interrupt)
 
     def __init__(self, face_path: str):
         super().__init__()
@@ -443,11 +444,14 @@ class MainWindow(QMainWindow):
                 self._show_setup()
 
         sc_mute = QShortcut(QKeySequence("F4"), self)
-        sc_mute.activated.connect(self._toggle_mute)
+        sc_mute.activated.connect(self._toggle_call_mode)
+        sc_pause = QShortcut(QKeySequence("Pause"), self)
+        sc_pause.activated.connect(self._toggle_call_mode)
         sc_full = QShortcut(QKeySequence("F11"), self)
         sc_full.activated.connect(self._toggle_fullscreen)
         sc_intr = QShortcut(QKeySequence("Escape"), self)
         sc_intr.activated.connect(self._do_interrupt)
+        self._call_mode_sig.connect(self._toggle_call_mode)
 
     def _show_camera_frame(self, img_bytes: bytes):
         """Slot — display camera preview overlay (main thread)."""
@@ -1288,6 +1292,16 @@ class MainWindow(QMainWindow):
         self._ctrl_btn.setToolTip("Controls — the everyday switches")
         self._ctrl_btn.clicked.connect(self._toggle_controls)
         lay.addWidget(self._ctrl_btn)
+
+        # ── Call Shield Button (Header: One-click mute & interrupt) ──
+        self._call_mode_btn = QPushButton("📞  CALL SHIELD")
+        self._call_mode_btn.setFixedHeight(32)
+        self._call_mode_btn.setFont(px_font(11, QFont.Weight.DemiBold, spacing=1.2))
+        self._call_mode_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._call_mode_btn.setToolTip("On a call? Click once to stop KruxoAI speaking immediately and mute the microphone [F4 / Pause]")
+        self._call_mode_btn.clicked.connect(self._toggle_call_mode)
+        lay.addWidget(self._call_mode_btn)
+
         lay.addStretch()
 
         self._state_chip = StateChip()
@@ -1650,17 +1664,28 @@ class MainWindow(QMainWindow):
         cmd.body.addWidget(self._build_input_row())
 
         row = QHBoxLayout()
-        row.setSpacing(8)
+        row.setSpacing(6)
         self._mute_btn = IconButton("mic", 38, "MIC ACTIVE", "GREEN")
         self._mute_btn.setToolTip("Mute or unmute the microphone  [F4]")
         self._mute_btn.clicked.connect(self._toggle_mute)
         self._style_mute_btn()
         row.addWidget(self._mute_btn, 1)
+
         self._interrupt_btn = IconButton("stop", 38, "INTERRUPT", "MUTED_C")
         self._interrupt_btn.setToolTip("Stop the assistant mid-sentence  [ESC]")
         self._interrupt_btn.clicked.connect(self._do_interrupt)
         row.addWidget(self._interrupt_btn, 1)
+
+        self._cmd_call_btn = QPushButton("📞 CALL SHIELD")
+        self._cmd_call_btn.setFixedHeight(38)
+        self._cmd_call_btn.setFont(px_font(11, QFont.Weight.DemiBold, spacing=1.0))
+        self._cmd_call_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._cmd_call_btn.setToolTip("Call Mode: Click to stop speech and mute mic instantly  [F4 / Pause]")
+        self._cmd_call_btn.clicked.connect(self._toggle_call_mode)
+        row.addWidget(self._cmd_call_btn, 1)
+
         cmd.body.addLayout(row)
+        self._sync_call_mode_btn()
         lay.addWidget(cmd)
         return w
 
@@ -2993,6 +3018,65 @@ class MainWindow(QMainWindow):
         self._video_auto_muted = False
         self._set_muted(not self._muted)
 
+    def _toggle_call_mode(self):
+        """Single-action button to silence KruxoAI and mute microphone when on a phone/conference call."""
+        if not self._muted:
+            # 1. Immediately cut off any active speech / audio playback
+            self._do_interrupt()
+            # 2. Mute microphone so call audio is never heard by the assistant
+            self._set_muted(True, note="(Call Shield: ON)")
+        else:
+            # Unmute and resume normal conversation
+            self._set_muted(False, note="(Call Shield: OFF)")
+        self._sync_call_mode_btn()
+
+    def _sync_call_mode_btn(self):
+        active = getattr(self, "_muted", False)
+        if hasattr(self, "_call_mode_btn"):
+            if active:
+                self._call_mode_btn.setText("🔴  ON CALL: MUTED & STOPPED")
+                self._call_mode_btn.setToolTip("Call Shield is ACTIVE: speech stopped and microphone muted. Click to resume normal conversation.")
+                self._call_mode_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: rgba(255, 51, 102, 0.22);
+                        color: #ffffff;
+                        border: 1px solid {C.MUTED_C};
+                        border-left: 3px solid {C.MUTED_C};
+                        padding: 0 12px;
+                        border-radius: 0px;
+                    }}
+                    QPushButton:hover {{
+                        background: rgba(255, 51, 102, 0.35);
+                        border-color: #ffffff;
+                    }}
+                """)
+            else:
+                self._call_mode_btn.setText("📞  CALL SHIELD")
+                self._call_mode_btn.setToolTip("On a call? Click once to immediately stop KruxoAI speaking and mute the microphone [F4 / Pause].")
+                self._call_mode_btn.setStyleSheet(btn_css("dim", align="center"))
+
+        if hasattr(self, "_cmd_call_btn"):
+            if active:
+                self._cmd_call_btn.setText("🔴 ON CALL (MUTED)")
+                self._cmd_call_btn.setToolTip("Call Shield is ACTIVE. Click to resume normal conversation.")
+                self._cmd_call_btn.setStyleSheet(f"""
+                    QPushButton {{
+                        background: rgba(255, 51, 102, 0.22);
+                        color: #ffffff;
+                        border: 1px solid {C.MUTED_C};
+                        border-left: 3px solid {C.MUTED_C};
+                        padding: 0 6px;
+                        border-radius: 0px;
+                    }}
+                    QPushButton:hover {{
+                        background: rgba(255, 51, 102, 0.35);
+                    }}
+                """)
+            else:
+                self._cmd_call_btn.setText("📞 CALL SHIELD")
+                self._cmd_call_btn.setToolTip("Call Mode: Click to stop speech and mute mic instantly  [F4 / Pause]")
+                self._cmd_call_btn.setStyleSheet(btn_css("dim", align="center"))
+
     def _set_muted(self, muted: bool, note: str = ""):
         muted = bool(muted)
         if muted == self._muted:
@@ -3000,6 +3084,7 @@ class MainWindow(QMainWindow):
         self._muted = muted
         self.hud.muted = muted
         self._style_mute_btn()
+        self._sync_call_mode_btn()
         if muted:
             self._apply_state("MUTED")
             self._log.append_log("SYS: Microphone muted." + (f" {note}" if note else ""))

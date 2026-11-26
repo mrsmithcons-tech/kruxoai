@@ -277,6 +277,11 @@ class JarvisUI:
         """Thread-safe: display content in the panel below the HUD."""
         self._win._content_sig.emit(title[:48], text[:4000])
 
+    def toggle_call_mode(self) -> None:
+        """Thread-safe: toggle call mode (mute microphone + interrupt speech immediately)."""
+        if hasattr(self, "_win") and hasattr(self._win, "_call_mode_sig"):
+            self._win._call_mode_sig.emit()
+
     def update_branding(self, title: str = "", subtitle: str = "") -> None:
         """Thread-safe: dynamically update window title and header subtitle."""
         if hasattr(self._win, "_brand_sig"):
