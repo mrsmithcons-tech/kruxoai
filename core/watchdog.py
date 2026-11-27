@@ -55,15 +55,18 @@ class SystemSupervisorWatchdog:
 
     def _check_http(self, url: str) -> bool:
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "JARVIS-Watchdog"})
-            with urllib.request.urlopen(req, timeout=1.5) as resp:
+            req = urllib.request.Request(
+                url,
+                headers={"User-Agent": "KruxoAI-Watchdog", "ngrok-skip-browser-warning": "true"}
+            )
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
                 return resp.status in (200, 404) # Alive
         except Exception:
             return False
 
     def _watch_loop(self) -> None:
-        # Give system 10 seconds to finish warm-up
-        time.sleep(10)
+        # Give system 15 seconds to finish warm-up
+        time.sleep(15)
 
         while self._running:
             try:
@@ -78,16 +81,29 @@ class SystemSupervisorWatchdog:
                         pass
 
                 # 2. Check MCP Server & Permanent Tunnel
+                no_win = subprocess.CREATE_NO_WINDOW if subprocess.mswindows else 0
                 if not self._check_http("http://127.0.0.1:9877/health"):
                     try:
-                        subprocess.Popen(["python", "core/jarvis_mcp_http.py", "--tunnel"], creationflags=subprocess.CREATE_NO_WINDOW if subprocess.mswindows else 0)
+                        subprocess.Popen(
+                            ["python", "core/jarvis_mcp_http.py", "--tunnel"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            stdin=subprocess.DEVNULL,
+                            creationflags=no_win
+                        )
                         self._revival_counts["mcp_9877"] += 1
                         print("[Watchdog] Revived MCP Server on port 9877.")
                     except Exception:
                         pass
-                elif not self._check_http("https://stabilize-gladly-possibly.ngrok-free.dev/health"):
+                elif not self._check_http("http://127.0.0.1:4040/api/tunnels"):
                     try:
-                        subprocess.Popen(["ngrok", "start", "jarvis"], creationflags=subprocess.CREATE_NO_WINDOW if subprocess.mswindows else 0)
+                        subprocess.Popen(
+                            ["ngrok", "start", "jarvis"],
+                            stdout=subprocess.DEVNULL,
+                            stderr=subprocess.DEVNULL,
+                            stdin=subprocess.DEVNULL,
+                            creationflags=no_win
+                        )
                         print("[Watchdog] Revived permanent ngrok tunnel.")
                     except Exception:
                         pass
@@ -119,9 +135,9 @@ class SystemSupervisorWatchdog:
                 except Exception:
                     pass
 
-                time.sleep(5)
+                time.sleep(30)
             except Exception:
-                time.sleep(5)
+                time.sleep(30)
 
 
 # Global singleton instance
