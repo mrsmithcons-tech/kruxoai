@@ -638,9 +638,10 @@ def start_permanent_tunnel(port: int = DEFAULT_PORT) -> str:
     if active_url and PERMANENT_STATIC_DOMAIN in active_url:
         return active_url
 
-    # Terminate any conflicting or stale ngrok process
+    # Terminate any conflicting or stale ngrok process silently without flashing a CMD window
     try:
-        subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True)
+        no_win = subprocess.CREATE_NO_WINDOW if subprocess.mswindows else 0
+        subprocess.run(["taskkill", "/F", "/IM", "ngrok.exe"], capture_output=True, creationflags=no_win)
         time.sleep(1.0)
     except Exception:
         pass
